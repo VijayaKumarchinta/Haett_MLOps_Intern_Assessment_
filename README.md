@@ -21,6 +21,8 @@
 - [🚀 Quick Start](#-quick-start)
 - [📊 Pipeline Steps](#-pipeline-steps)
 - [📡 API Reference](#-api-reference)
+  - [User Scenarios](#-user-scenarios)
+  - [SHAP Explainability](#-with-shap-explanations)
 - [📸 Screenshots](#-screenshots)
 - [🧪 Testing](#-testing)
 - [🐳 Docker](#-docker)
@@ -35,8 +37,8 @@
 This project predicts which users are likely to **churn (cancel their subscription) within the next 30 days** on the Haett meal delivery platform. The system takes user historical activity as input and returns:
 
 1. **Churn probability** — how likely the user is to churn
-2. **Risk level** — Low, Medium, or High
-3. **Business recommendation** — actionable retention suggestion for High Risk users
+2. **Risk level** — **Low**, **Medium**, or **High** (using the model's optimal decision threshold)
+3. **Business recommendation** — SHAP-driven retention suggestion with risk signals, strengths, and actions
 
 ### Key Deliverables
 
@@ -44,10 +46,10 @@ This project predicts which users are likely to **churn (cancel their subscripti
 |---|---|
 | Synthetic dataset (5,000 users) | ✅ Complete |
 | 30 features matching assessment criteria | ✅ Complete |
-| Multi-model training (LR, RF, XGBoost) | ✅ Complete |
+| Multi-model training (LR, RF, XGBoost) | ✅ Complete — XGBoost best (F1=0.28, ROC-AUC=0.76) |
 | MLflow experiment tracking | ✅ Complete |
 | FastAPI with `POST /predict` endpoint | ✅ Complete |
-| Business recommendation engine | ✅ Complete |
+| **SHAP-driven business recommendations** | ✅ Complete |
 | Docker containerization | ✅ Complete |
 | CI/CD GitHub Actions | ✅ Bonus |
 | SHAP explainability | ✅ Bonus |
@@ -85,7 +87,8 @@ This project predicts which users are likely to **churn (cancel their subscripti
 │  │              POST /predict                       │   │
 │  │  User Features → Churn Probability               │   │
 │  │                → Risk Level (Low/Medium/High)    │   │
-│  │                → Business Recommendation         │   │
+│  │                → SHAP-driven Recommendation      │   │
+│  │                → [Optional] Feature Explanations │   │
 │  └──────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -155,6 +158,7 @@ python src/run_pipeline.py
    ROC-AUC: 0.7587
    PR-AUC:  0.1891
    Features: 30
+   Optimal threshold: 0.1620
 ```
 
 ### 3. Start the Prediction API
@@ -167,46 +171,9 @@ python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 
 | Link | What you'll see |
 |---|---|
-| **http://localhost:8000/docs** | Interactive Swagger API documentation |
-| **http://localhost:8000/health** | Health check JSON |
-| **http://localhost:5000** | MLflow experiment tracking dashboard |
-
-### 5. Make a Prediction
-
-```bash
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "user_id": 1,
-    "days_since_last_order": 60,
-    "tenure_days": 75,
-    "total_orders": 5,
-    "std_days_between_orders": 15,
-    "orders_last_30_days": 0,
-    "avg_order_value": 28,
-    "avg_rating": 2.1,
-    "coupon_usage_count": 2,
-    "coupon_usage_rate": 0.4,
-    "n_plan_changes": 3,
-    "monthly_price": 29.99,
-    "subscription_tenure_days": 30,
-    "avg_app_logins": 0.5,
-    "avg_meals_skipped": 3,
-    "total_support_tickets": 8,
-    "age": 22,
-    "age_group_code": 0
-  }'
-```
-
-**Response:**
-```json
-{
-  "user_id": 1,
-  "churn_probability": 0.2269,
-  "risk_level": "Low",
-  "business_recommendation": "No action needed. User is at low risk of churning."
-}
-```
+| [**http://localhost:8000/docs**](http://localhost:8000/docs) | Interactive Swagger API documentation |
+| [**http://localhost:8000/health**](http://localhost:8000/health) | Health check JSON |
+| [**http://localhost:5000**](http://localhost:5000) | MLflow experiment tracking dashboard |
 
 ### One-Command Runner
 
@@ -263,57 +230,208 @@ POST /predict
 ```json
 {
   "user_id": 1,
-  "days_since_last_order": 60,
-  "tenure_days": 75,
-  "total_orders": 5,
-  "std_days_between_orders": 15,
-  "orders_last_30_days": 0,
-  "avg_order_value": 28,
-  "avg_rating": 2.1,
-  "coupon_usage_count": 2,
-  "coupon_usage_rate": 0.4,
-  "n_plan_changes": 3,
-  "monthly_price": 29.99,
-  "subscription_tenure_days": 30,
-  "avg_app_logins": 0.5,
-  "avg_meals_skipped": 3,
-  "total_support_tickets": 8,
-  "age": 22,
-  "age_group_code": 0
+  "days_since_last_order": 1,
+  "tenure_days": 600,
+  "total_orders": 80,
+  "std_days_between_orders": 2.5,
+  "orders_last_30_days": 10,
+  "avg_order_value": 45,
+  "avg_rating": 4.8,
+  "coupon_usage_count": 0,
+  "coupon_usage_rate": 0,
+  "n_plan_changes": 0,
+  "monthly_price": 99.99,
+  "subscription_tenure_days": 580,
+  "avg_app_logins": 15,
+  "avg_meals_skipped": 0,
+  "total_support_tickets": 0,
+  "age": 45,
+  "age_group_code": 2
 }
+```
+
+---
+
+### 👤 User Scenarios
+
+#### ✅ Scenario 1: Low Risk — Power User (Loyal Customer)
+
+A loyal, long-term customer with high engagement, no support issues, and excellent ratings.
+
+```bash
+curl -s -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": 1,
+    "days_since_last_order": 1,
+    "tenure_days": 600,
+    "total_orders": 80,
+    "std_days_between_orders": 2.5,
+    "orders_last_30_days": 10,
+    "avg_order_value": 45,
+    "avg_rating": 4.8,
+    "coupon_usage_count": 0,
+    "coupon_usage_rate": 0,
+    "n_plan_changes": 0,
+    "monthly_price": 99.99,
+    "subscription_tenure_days": 580,
+    "avg_app_logins": 15,
+    "avg_meals_skipped": 0,
+    "total_support_tickets": 0,
+    "age": 45,
+    "age_group_code": 2
+  }' | python -m json.tool
 ```
 
 **Response:**
 ```json
 {
-  "user_id": 1,
-  "churn_probability": 0.2269,
-  "risk_level": "Low",
-  "business_recommendation": "No action needed. User is at low risk of churning."
+    "user_id": 1,
+    "churn_probability": 0.0526,
+    "risk_level": "Low",
+    "business_recommendation": "Low risk (P=5.26%). User is in good standing — no retention action needed. Strength: Long-term subscriber — recognize milestone with a reward."
 }
 ```
 
-### With SHAP Explanations
+---
+
+#### ⚠️ Scenario 2: Medium Risk — Disengaged User (Short History, Low Engagement)
+
+A relatively new user with short account history, declining engagement, poor ratings, and multiple support tickets.
+
+```bash
+curl -s -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": 2,
+    "days_since_last_order": 60,
+    "tenure_days": 75,
+    "total_orders": 5,
+    "std_days_between_orders": 15,
+    "orders_last_30_days": 0,
+    "avg_order_value": 28,
+    "avg_rating": 2.1,
+    "coupon_usage_count": 2,
+    "coupon_usage_rate": 0.4,
+    "n_plan_changes": 3,
+    "monthly_price": 29.99,
+    "subscription_tenure_days": 30,
+    "avg_app_logins": 0.5,
+    "avg_meals_skipped": 3,
+    "total_support_tickets": 8,
+    "age": 22,
+    "age_group_code": 0
+  }' | python -m json.tool
+```
+
+**Response** *(note: the recommendation includes SHAP-identified risk signals and targeted actions)*:
+```json
+{
+    "user_id": 2,
+    "churn_probability": 0.2269,
+    "risk_level": "Medium",
+    "business_recommendation": "At-risk (P=22.69%). Signals: Only 30 days subscribed — early churn risk window (impact: +0.608); Short account history of only 75 days — low loyalty (impact: +0.407).\n\nRecommended actions:\n  1. Strengthen onboarding with guided meal selection and tips\n  2. Welcome series: offer a discounted 4-week trial to build ordering habit"
+}
+```
+
+---
+
+#### ⚠️ Scenario 3: Medium Risk — Brand New User (Critical Onboarding Window)
+
+A brand new user who signed up only 5 days ago but is already showing warning signs: multiple support tickets, skipped meals, and low app engagement. This captures churn risk during the critical early onboarding phase.
+
+```bash
+curl -s -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": 3,
+    "days_since_last_order": 10,
+    "tenure_days": 15,
+    "total_orders": 2,
+    "std_days_between_orders": 999,
+    "orders_last_30_days": 1,
+    "avg_order_value": 22,
+    "avg_rating": 2.5,
+    "coupon_usage_count": 1,
+    "coupon_usage_rate": 0.5,
+    "n_plan_changes": 1,
+    "monthly_price": 19.99,
+    "subscription_tenure_days": 5,
+    "avg_app_logins": 0.2,
+    "avg_meals_skipped": 5,
+    "total_support_tickets": 4,
+    "age": 20,
+    "age_group_code": 0
+  }' | python -m json.tool
+```
+
+**Response:**
+```json
+{
+    "user_id": 3,
+    "churn_probability": 0.2097,
+    "risk_level": "Medium",
+    "business_recommendation": "At-risk (P=20.97%). Signals: Only 5 days subscribed — early churn risk window (impact: +0.583); Short account history of only 15 days — low loyalty (impact: +0.352).\n\nRecommended actions:\n  1. Strengthen onboarding with guided meal selection and tips\n  2. Welcome series: offer a discounted 4-week trial to build ordering habit"
+}
+```
+
+---
+
+### 📊 With SHAP Explanations
 
 ```http
 POST /predict?explain=true
 ```
 
-**Response includes `explanations` array:**
+Add `?explain=true` to receive the **top 5 feature contributions** via SHAP for every prediction. Each explanation shows:
+
+- **feature**: The feature name
+- **value**: The actual feature value for this user
+- **impact**: Positive = increases churn risk, Negative = decreases churn risk
+
+```bash
+curl -s -X POST 'http://localhost:8000/predict?explain=true' \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": 2,
+    "days_since_last_order": 60,
+    "tenure_days": 75,
+    "total_orders": 5,
+    "std_days_between_orders": 15,
+    "orders_last_30_days": 0,
+    "avg_order_value": 28,
+    "avg_rating": 2.1,
+    "coupon_usage_count": 2,
+    "coupon_usage_rate": 0.4,
+    "n_plan_changes": 3,
+    "monthly_price": 29.99,
+    "subscription_tenure_days": 30,
+    "avg_app_logins": 0.5,
+    "avg_meals_skipped": 3,
+    "total_support_tickets": 8,
+    "age": 22,
+    "age_group_code": 0
+  }'
+```
+
+**Response:**
 ```json
 {
-  "user_id": 1,
-  "churn_probability": 0.061,
-  "risk_level": "Low",
-  "explanations": [
-    {"feature": "tenure_days",         "value": 200.0, "impact": 0.1473},
-    {"feature": "subscription_tenure_days", "value": 180.0, "impact": -0.1142},
-    {"feature": "avg_meals_skipped",    "value": 1.5,   "impact": -0.0425},
-    {"feature": "avg_rating",           "value": 3.2,   "impact": -0.0281},
-    {"feature": "total_support_tickets","value": 4.0,   "impact": 0.0261}
-  ]
+    "user_id": 2,
+    "churn_probability": 0.2269,
+    "risk_level": "Medium",
+    "business_recommendation": "At-risk (P=22.69%). Signals: Only 30 days subscribed — early churn risk window (impact: +0.608); Short account history of only 75 days — low loyalty (impact: +0.407).\n\nRecommended actions:\n  1. Strengthen onboarding with guided meal selection and tips\n  2. Welcome series: offer a discounted 4-week trial to build ordering habit",
+    "explanations": [
+        {"feature": "subscription_tenure_days", "value": 30.0, "impact": 0.6084},
+        {"feature": "tenure_days", "value": 75.0, "impact": 0.4074},
+        {"feature": "total_support_tickets", "value": 8.0, "impact": 0.1142},
+        {"feature": "age", "value": 22.0, "impact": 0.0621},
+        {"feature": "avg_meals_skipped", "value": 3.0, "impact": -0.0447}
+    ]
 }
 ```
+
+> **💡 Key Insight**: `subscription_tenure_days` (+0.6084) is the strongest risk driver for this user — the model identifies that being only 30 days into the subscription is the #1 churn signal. The recommendation targets this with onboarding improvement.
 
 ### Predict Churn (Batch)
 
@@ -327,19 +445,19 @@ Accepts up to **1,000 users** in a single request.
 
 ## 📸 Screenshots
 
-The following screenshots are available in the `screenshots/` directory for submission:
+Click the links below to view the screenshots captured from the running system:
 
-| Screenshot | File | Description |
+| Screenshot | Preview | Description |
 |---|---|---|
-| **Swagger API Documentation** | `screenshots/Haett Churn Prediction API - Swagger UI.pdf` | All 4 API endpoints listed |
-| **Prediction Response** | (In Swagger UI) | `/predict` with user data + response |
-| **MLflow Experiment Runs** | `screenshots/Runs - Experiment 1 - MLflow.pdf` | Training runs with metrics |
-| **MLflow Model Comparison** | `screenshots/Compare Runs - MLflow.pdf` | Side-by-side model comparison |
+| **Swagger API Documentation** | [📄 Click to View](./screenshots/Haett%20Churn%20Prediction%20API%20-%20Swagger%20UI.pdf) | All 4 API endpoints (GET /health, GET /, POST /predict, POST /predict/batch) |
+| **MLflow Experiment Runs** | [📄 Click to View](./screenshots/Runs%20-%20Experiment%201%20-%20MLflow.pdf) | All training runs with their metrics (F1, ROC-AUC, PR-AUC) |
+| **MLflow Model Comparison** | [📄 Click to View](./screenshots/Compare%20Runs%20-%20MLflow.pdf) | Side-by-side comparison of LR, RF, and XGBoost models |
 
-To take fresh screenshots:
-1. Open **http://localhost:8000/docs** → right-click → Save as PDF
-2. Open **http://localhost:5000** → click experiment → right-click → Save as PDF
-3. In Swagger UI → POST /predict → Try it out → Execute → screenshot the response
+### How to Take Fresh Screenshots
+
+1. **Swagger UI**: Open [http://localhost:8000/docs](http://localhost:8000/docs) → Right-click → **Print** → **Save as PDF**
+2. **MLflow Runs**: Open [http://localhost:5000](http://localhost:5000) → Click experiment → Right-click → **Save as PDF**
+3. **Prediction Response**: In Swagger UI → `POST /predict` → **Try it out** → Paste user data → **Execute** → Screenshot the response
 
 ---
 
@@ -354,7 +472,7 @@ python -m pytest tests/test_feature_engineering.py -v
 python -m pytest tests/test_api.py -v
 ```
 
-**Results: 44 passed, 0 failed, 1 skipped**
+**Results: 45 passed, 0 failed, 0 skipped**
 
 ---
 
@@ -400,6 +518,8 @@ docker-compose up --build
 | ✅ **Input Validation** | Pydantic schemas with field constraints |
 | ✅ **Containerization** | Multi-stage Docker + docker-compose |
 | ✅ **Target Leakage Prevention** | Removed is_sub_active and related features |
+| ✅ **Dynamic Risk Thresholds** | Uses model's optimal F1 threshold from training |
+| ✅ **SHAP-Driven Recommendations** | Business recommendations use SHAP feature importance |
 | ✅ **CI/CD (Bonus)** | GitHub Actions workflows for lint, test, deploy |
 | ✅ **SHAP Explainability (Bonus)** | Feature contributions per prediction |
 | ✅ **Data Drift Detection (Bonus)** | Evidently AI reference data monitoring |
@@ -414,11 +534,13 @@ docker-compose up --build
 - [x] Requirements file (`requirements.txt`)
 - [x] Docker configuration (`Dockerfile`, `docker-compose.yml`)
 - [x] MLflow experiment tracking (screenshots in `screenshots/`)
-- [x] Sample API requests (see [Quick Start](#-quick-start))
+- [x] Sample API requests (see [User Scenarios](#-user-scenarios))
 - [x] Design assumptions documented (synthetic data generation)
 - [x] Feature engineering matches assessment criteria (7 features)
 - [x] Target leakage verified and fixed
-- [x] Pushed to GitHub: `https://github.com/VijayaKumarchinta/Haett_MLOps_Intern_Assessment_`
+- [x] SHAP-driven business recommendations with risk signals
+- [x] Dynamic risk thresholds using model's optimal threshold
+- [x] Pushed to GitHub: [https://github.com/VijayaKumarchinta/Haett_MLOps_Intern_Assessment_](https://github.com/VijayaKumarchinta/Haett_MLOps_Intern_Assessment_)
 
 ---
 
