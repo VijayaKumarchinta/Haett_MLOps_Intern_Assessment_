@@ -10,7 +10,7 @@
 [![MLflow](https://img.shields.io/badge/MLflow-Experiment%20Tracking-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org/)
 [![Docker](https://img.shields.io/badge/Docker-Inference%20Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-Logistic%20Regression-F7931E?logo=scikitlearn&logoColor=white)](https://scikit-learn.org/)
-[![Tests](https://img.shields.io/badge/Tests-45%20Passed-2EA44F?logo=pytest&logoColor=white)](#-testing)
+[![Tests](https://img.shields.io/badge/Tests-50%20Passed-2EA44F?logo=pytest&logoColor=white)](#-testing)
 [![SHAP](https://img.shields.io/badge/Explainability-SHAP-8A2BE2)](https://shap.readthedocs.io/)
 [![Assessment](https://img.shields.io/badge/Assessment-Haett%20MLOps-FF6B35)](#-assessment-requirement-mapping)
 
@@ -61,15 +61,15 @@ The README is organized around the six mandatory sections in the assessment.
 | 2. Feature engineering | Recency, frequency, monetary, subscription, coupon, meal-swap, and consistency features | ✅ |
 | 3. Model training | Logistic Regression, Random Forest, and XGBoost with classification metrics | ✅ |
 | 4. MLflow tracking | Parameters, metrics, plots, and model artifacts logged | ✅ |
-| Registered best model | Final model is saved and deployed; formal MLflow Registry promotion is not yet implemented | ⚠️ |
+| Registered best model | MLflow Model Registry version with `champion` alias | ✅ |
 | 5. FastAPI prediction API | `POST /predict`, validation, health endpoint, and batch prediction | ✅ |
 | 6. Business recommendation | High-risk users receive a retention action based on risk signals | ✅ |
 | Dockerized application | Lightweight inference image with health check | ✅ |
 | Modular code | Separate data, model, API, monitoring, and utility modules | ✅ |
-| Basic testing | 45 automated tests | ✅ |
+| Basic testing | 50 automated tests | ✅ |
 | Clear documentation | Setup, design decisions, requests, responses, and limitations | ✅ |
 
-> **Transparent limitation:** the assessment asks for a registered best model. The current solution logs MLflow experiments and saves the selected deployment artifact, but automatic registration/promotion through the MLflow Model Registry remains a documented future improvement.
+> **Transparent limitation:** the assessment asks for a registered best model. The selected model is registered in MLflow Model Registry and promoted using the `champion` alias.
 
 ---
 
@@ -277,7 +277,7 @@ http://localhost:5000
 
 The selected artifact is stored in `models/` and packaged into the inference image.
 
-Formal MLflow Model Registry registration and alias-based promotion, such as a `champion` alias, are not yet automated. This is listed under [Future Improvements](#-future-improvements), in line with the assessment instruction to clearly document incomplete items.
+MLflow Model Registry registration and `champion` alias promotion are implemented through `scripts/register_best_model.py`. This is listed under [Future Improvements](#-future-improvements), in line with the assessment instruction to clearly document incomplete items.
 
 ---
 
@@ -746,7 +746,7 @@ This is implemented as an offline monitoring utility rather than a continuously 
 | Container security | Non-root Docker user |
 | Health monitoring | Docker and API health checks |
 | CI | GitHub Actions workflow |
-| Testing | 45 automated tests |
+| Testing | 50 automated tests |
 | Explainability | SHAP |
 | Drift detection | Reference-based monitoring |
 | Documentation | Setup, design decisions, limitations, and examples |
@@ -779,7 +779,7 @@ The optional items not included were intentionally excluded to prioritize clean 
 6. **Pre-trained Docker artifact:** model training is separated from API image creation to reduce build time and improve deployment consistency.
 7. **Batch performance:** SHAP is skipped during batch scoring.
 8. **Graceful failure:** missing model artifacts result in a service-unavailable response.
-9. **Registry limitation:** MLflow Registry promotion is documented as incomplete instead of being falsely claimed.
+9. **Model Registry:** the selected model is registered and assigned the `champion` alias.
 
 ---
 
@@ -800,7 +800,6 @@ The optional items not included were intentionally excluded to prioritize clean 
 - [x] Add a `champion` model alias
 - [ ] Strengthen train-validation-test separation
 - [ ] Add scheduled drift monitoring and alerts
-- [ ] Add cloud deployment
 - [ ] Add centralized prediction and application logging
 - [ ] Add authentication and rate limiting
 - [ ] Track retention actions and outcomes
@@ -821,7 +820,7 @@ The repository includes:
 - [x] Automated tests
 - [x] Saved deployment model artifacts
 - [x] Drift-monitoring utilities
-- [ ] Automated MLflow Model Registry promotion
+- [x] MLflow Model Registry registration and champion alias
 
 ---
 
