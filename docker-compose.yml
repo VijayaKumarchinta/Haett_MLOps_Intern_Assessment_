@@ -1,18 +1,23 @@
-version: "3.8"
+name: haett-mlops
 
 services:
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: haett-churn-api:latest
     container_name: haett-churn-api
     ports:
       - "8000:8000"
-    volumes:
-      - ./models:/app/models
-      - ./data:/app/data
-      - ./mlruns:/app/mlruns
     environment:
-      - MLFLOW_TRACKING_URI=file:///app/mlruns
-    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+      CORS_ORIGINS: "${CORS_ORIGINS:-*}"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
     networks:
       - haett-network
 
@@ -23,7 +28,17 @@ services:
       - "5000:5000"
     volumes:
       - ./mlruns:/mlruns
-    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlruns
+    command:
+      - mlflow
+      - server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --backend-store-uri
+      - /mlruns
+    restart: unless-stopped
+    init: true
     networks:
       - haett-network
 

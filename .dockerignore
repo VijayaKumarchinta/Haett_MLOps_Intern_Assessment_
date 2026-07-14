@@ -1,7 +1,9 @@
+# Git
 .git
 .github
 .gitignore
 
+# Python environments and caches
 .venv
 venv
 env
@@ -10,29 +12,45 @@ __pycache__
 *.py[cod]
 *.so
 *.egg-info
-
 .pytest_cache
+.mypy_cache
+.ruff_cache
 .coverage
 htmlcov
 
+# Training and experiment outputs
+data
 mlruns
 mlartifacts
-data
 monitoring
+reports
 screenshots
+notebooks
+
+# Tests and development utilities
 tests
 scripts
+.vscode
+.idea
+.ipynb_checkpoints
 
+# Documents and logs
 *.docx
 *.pdf
 *.log
-.ipynb_checkpoints
-.vscode
-.idea
 
-Dockerfile.training
+# Docker/development files not required inside the image
 docker-compose.yml
+Dockerfile.training
 DEPLOYMENT.md
 README.md
 Makefile
-run.py
+
+# Include only deployment model artifacts
+models/*
+!models/churn_model.pkl
+!models/tuned_model.pkl
+!models/scaler.pkl
+!models/optimal_threshold.txt
+!models/feature_names.txt
+!models/model_metadata.json

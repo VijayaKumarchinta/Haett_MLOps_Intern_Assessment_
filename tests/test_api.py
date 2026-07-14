@@ -3,11 +3,6 @@ API Tests for Haett Churn Prediction Service
 Tests the FastAPI endpoints using the TestClient with mocked predictor.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 import sys
 from pathlib import Path
@@ -15,9 +10,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.api.main import app, health_check, predict_churn, predict_churn_batch, root
-import src.api.main as api_main
-from src.models import predict as predict_module
+from src.api.main import app
 
 client = TestClient(app)
 
@@ -48,7 +41,12 @@ def test_predict_endpoint_with_mock():
     """Test the prediction endpoint with a mocked predictor returning deterministic results."""
     # Create a mock predictor
     mock_predictor = MagicMock()
-    mock_predictor.feature_names = ["days_since_last_order", "total_orders", "total_spent", "age"]
+    mock_predictor.feature_names = [
+        "days_since_last_order",
+        "total_orders",
+        "total_spent",
+        "age",
+    ]
     mock_predictor.model = MagicMock()
     mock_predictor.scaler = None
     mock_predictor.predict.return_value = {
@@ -84,7 +82,12 @@ def test_predict_endpoint_with_mock():
 def test_predict_endpoint_with_explain():
     """Test the prediction endpoint with ?explain=true."""
     mock_predictor = MagicMock()
-    mock_predictor.feature_names = ["days_since_last_order", "total_orders", "total_spent", "age"]
+    mock_predictor.feature_names = [
+        "days_since_last_order",
+        "total_orders",
+        "total_spent",
+        "age",
+    ]
     mock_predictor.model = MagicMock()
     mock_predictor.scaler = None
     mock_predictor.predict.return_value = {
@@ -108,31 +111,68 @@ def test_predict_endpoint_with_explain():
 
 
 def test_batch_predict_endpoint():
-    """Test batch prediction endpoint with mocked predictor."""
+    """Test batch prediction endpoint with a mocked predictor."""
     mock_predictor = MagicMock()
-    mock_predictor.feature_names = ["days_since_last_order", "total_orders", "age"]
+
+    mock_predictor.feature_names = [
+        "days_since_last_order",
+        "total_orders",
+        "age",
+    ]
     mock_predictor.model = MagicMock()
     mock_predictor.scaler = None
-    mock_predictor.predict.return_value = {
-        "churn_probability": 0.1234,
-        "risk_level": "Low",
-        "business_recommendation": "No action needed.",
+
+    mock_predictor.predict_batch.return_value = [
+        {
+            "churn_probability": 0.1234,
+            "risk_level": "Low",
+            "business_recommendation": "No action needed.",
+        },
+        {
+            "churn_probability": 0.4567,
+            "risk_level": "Medium",
+            "business_recommendation": ("Send a personalized engagement notification."),
+        },
+    ]
+
+    request_data = {
+        "users": [
+            {
+                "user_id": 1,
+                "age": 30,
+            },
+            {
+                "user_id": 2,
+                "age": 40,
+            },
+        ]
     }
 
-    with patch("src.api.main.get_predictor", return_value=mock_predictor):
-        request_data = {
-            "users": [
-                {"user_id": 1, "age": 30},
-                {"user_id": 2, "age": 40},
-            ]
-        }
-        response = client.post("/predict/batch", json=request_data)
-        assert response.status_code == 200
-        data = response.json()
-        assert "users" in data
-        assert "total" in data
-        assert data["total"] == 2
-        assert len(data["users"]) == 2
+    with patch(
+        "src.api.main.get_predictor",
+        return_value=mock_predictor,
+    ):
+        response = client.post(
+            "/predict/batch",
+            json=request_data,
+        )
+
+    assert response.status_code == 200
+
+    response_data = response.json()
+
+    assert response_data["total"] == 2
+    assert len(response_data["users"]) == 2
+
+    assert response_data["users"][0]["user_id"] == 1
+    assert response_data["users"][0]["churn_probability"] == 0.1234
+    assert response_data["users"][0]["risk_level"] == "Low"
+
+    assert response_data["users"][1]["user_id"] == 2
+    assert response_data["users"][1]["churn_probability"] == 0.4567
+    assert response_data["users"][1]["risk_level"] == "Medium"
+
+    mock_predictor.predict_batch.assert_called_once()
 
 
 def test_predict_returns_503_without_model():
@@ -142,7 +182,10 @@ def test_predict_returns_503_without_model():
     mock.side_effect = FileNotFoundError("Model not found. Run train.py first.")
 
     with patch("src.api.main.ChurnPredictor", mock):
-        with patch("src.api.main.get_predictor", side_effect=FileNotFoundError("Model not found")):
+        with patch(
+            "src.api.main.get_predictor",
+            side_effect=FileNotFoundError("Model not found"),
+        ):
             response = client.post("/predict", json={"user_id": 1})
             assert response.status_code == 503
             assert "detail" in response.json()

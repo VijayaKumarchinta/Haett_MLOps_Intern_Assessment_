@@ -1,145 +1,263 @@
 """
-Prediction Module
-Handles model loading, single/batch predictions, and SHAP explainability for the FastAPI endpoint.
+Prediction module for the Haett Churn Prediction System.
+
+Responsibilities:
+- Load model artifacts once.
+- Align and transform inference features.
+- Produce single and vectorized batch predictions.
+- Calculate optional SHAP explanations.
+- Generate business retention recommendations.
 """
 
-import logging
-import pandas as pd
-import numpy as np
-import joblib
-import json
-from pathlib import Path
-import sys
+from __future__ import annotations
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+import json
+import logging
+import threading
+from pathlib import Path
+from typing import Any
+
+import joblib
+import numpy as np
+import pandas as pd
+
 from src.utils.config import MODELS_DIR
-from src.utils.metrics import assess_risk_level, get_business_recommendation
+from src.utils.metrics import (
+    assess_risk_level,
+    get_business_recommendation,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class ChurnPredictor:
-    """Wrapper around the trained churn prediction model with SHAP explainability."""
+    """
+    Wrapper around the trained churn model.
 
-    def __init__(self, model_path: Path | None = None):
-        self.model_path = model_path or MODELS_DIR / "churn_model.pkl"
+    The deployed model is used for probabilities. The saved raw tuned model
+    is used for explainability when available.
+    """
+
+    def __init__(
+        self,
+        model_path: Path | None = None,
+    ) -> None:
+        self.model_path = (
+            Path(model_path)
+            if model_path is not None
+            else MODELS_DIR / "churn_model.pkl"
+        )
+
         self.tuned_model_path = MODELS_DIR / "tuned_model.pkl"
         self.scaler_path = MODELS_DIR / "scaler.pkl"
         self.feature_names_path = MODELS_DIR / "feature_names.txt"
         self.metadata_path = MODELS_DIR / "model_metadata.json"
         self.threshold_path = MODELS_DIR / "optimal_threshold.txt"
-        self.model = None
-        self.tuned_model = None  # raw model for SHAP (pre-calibration)
-        self.scaler = None
-        self.feature_names = None
-        self.metadata = None
+
+        self.model: Any | None = None
+        self.tuned_model: Any | None = None
+        self.scaler: Any | None = None
+        self.feature_names: list[str] | None = None
+        self.metadata: dict[str, Any] | None = None
         self.optimal_threshold = 0.5
-        self._shap_explainer = None
+
+        self._shap_explainer: Any | None = None
+        self._explainer_lock = threading.Lock()
+
         self._load_model()
 
-    def _load_model(self):
-        """Load the trained model, tuned model (for SHAP), scaler, and metadata."""
+    def _load_model(self) -> None:
+        """Load all available inference artifacts."""
         if not self.model_path.exists():
             raise FileNotFoundError(
-                f"Model not found at {self.model_path}. Run train.py first."
+                f"Model artifact not found at {self.model_path}. "
+                "Run the training pipeline before starting the API."
             )
+
         self.model = joblib.load(self.model_path)
 
-        # Load the raw tuned model for SHAP (saved pre-calibration)
         if self.tuned_model_path.exists():
             self.tuned_model = joblib.load(self.tuned_model_path)
 
-        # Load scaler if it exists (used for Logistic Regression)
         if self.scaler_path.exists():
             self.scaler = joblib.load(self.scaler_path)
 
-        # Load optimal threshold
         if self.threshold_path.exists():
-            with open(self.threshold_path, "r") as f:
-                self.optimal_threshold = float(f.read().strip())
+            threshold_text = self.threshold_path.read_text(encoding="utf-8").strip()
+
+            threshold = float(threshold_text)
+
+            if not 0 < threshold < 1:
+                raise ValueError(
+                    "The stored optimal threshold must be between 0 and 1."
+                )
+
+            self.optimal_threshold = threshold
 
         if self.feature_names_path.exists():
-            with open(self.feature_names_path, "r") as f:
-                self.feature_names = [line.strip() for line in f.readlines()]
+            feature_names = [
+                line.strip()
+                for line in self.feature_names_path.read_text(
+                    encoding="utf-8"
+                ).splitlines()
+                if line.strip()
+            ]
+
+            self.feature_names = feature_names or None
 
         if self.metadata_path.exists():
-            with open(self.metadata_path, "r") as f:
-                self.metadata = json.load(f)
+            with self.metadata_path.open(
+                "r",
+                encoding="utf-8",
+            ) as metadata_file:
+                self.metadata = json.load(metadata_file)
 
-    def _init_explainer(self):
-        """Lazily initialize the SHAP explainer using the raw tuned model."""
-        if self._shap_explainer is not None:
-            return
+        logger.info(
+            "Loaded churn model from %s.",
+            self.model_path,
+        )
 
-        import shap
+    def _model_requires_external_scaling(self) -> bool:
+        """
+        Determine whether the separately saved scaler must be applied.
 
-        shap_model = self.tuned_model if self.tuned_model is not None else self.model
-        model_type = type(shap_model).__name__
+        Tree-based models must not be scaled merely because a stale scaler
+        artifact exists. Scaling is enabled only when the deployed/raw model
+        is identified as Logistic Regression.
+        """
+        if self.scaler is None:
+            return False
 
-        try:
-            if "RandomForest" in model_type or "XGB" in model_type or "GradientBoosting" in model_type:
-                self._shap_explainer = shap.TreeExplainer(shap_model)
-            elif "LogisticRegression" in model_type:
-                n_features = len(self.feature_names) if self.feature_names else 10
-                self._shap_explainer = shap.LinearExplainer(
-                    shap_model, np.zeros((1, n_features))
+        # Avoid scaling twice when a complete sklearn Pipeline was saved.
+        if hasattr(self.model, "named_steps"):
+            return False
+
+        candidate_models = [
+            self.tuned_model,
+            self.model,
+            getattr(self.model, "estimator", None),
+            getattr(self.model, "base_estimator", None),
+        ]
+
+        for candidate in candidate_models:
+            if candidate is None:
+                continue
+
+            model_type = type(candidate).__name__.lower()
+
+            if "logisticregression" in model_type:
+                return True
+
+        if self.metadata:
+            model_name = str(
+                self.metadata.get(
+                    "best_model",
+                    self.metadata.get(
+                        "model_name",
+                        self.metadata.get("model_type", ""),
+                    ),
                 )
-            else:
-                self._shap_explainer = shap.Explainer(
-                    shap_model, check_additivity=False
-                )
-        except Exception:
-            logger.warning("SHAP explainer initialization failed", exc_info=True)
-            raise
+            ).lower()
 
-    def prepare_features(self, features: pd.DataFrame) -> pd.DataFrame:
-        """Align, order, and scale features to match the model's expectations."""
+            if "logistic" in model_name or model_name == "lr_classifier":
+                return True
+
+        return False
+
+    def align_features(
+        self,
+        features: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """
+        Align input columns with the exact training feature order.
+
+        Missing model features are initialized to zero. Extra API fields are
+        removed when stored feature names are available.
+        """
+        if features.empty:
+            raise ValueError("At least one feature row is required.")
+
+        aligned = features.copy()
+
         if self.feature_names:
-            for col in self.feature_names:
-                if col not in features.columns:
-                    features[col] = 0
-            features = features[self.feature_names]
-
-        if self.scaler is not None:
-            features = pd.DataFrame(
-                self.scaler.transform(features),
-                columns=features.columns,
-                index=features.index,
+            aligned = aligned.reindex(
+                columns=self.feature_names,
+                fill_value=0,
             )
 
-        return features
+        try:
+            aligned = aligned.astype(float)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("All prediction features must be numeric.") from exc
 
-    def predict(self, features: pd.DataFrame, explain: bool = False) -> dict:
+        return aligned
+
+    def transform_features(
+        self,
+        aligned_features: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Apply the saved scaler only when required by the model."""
+        if self.scaler is None or not self._model_requires_external_scaling():
+            return aligned_features
+
+        transformed_values = self.scaler.transform(aligned_features)
+
+        return pd.DataFrame(
+            transformed_values,
+            columns=aligned_features.columns,
+            index=aligned_features.index,
+        )
+
+    def prepare_features(
+        self,
+        features: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Align and transform inference features."""
+        aligned = self.align_features(features)
+        return self.transform_features(aligned)
+
+    def predict(
+        self,
+        features: pd.DataFrame,
+        explain: bool = False,
+    ) -> dict[str, Any]:
         """
-        Predict churn probability for a single user's feature vector.
+        Predict churn probability for one user.
 
-        Always uses the model's optimal threshold (from training) for risk assessment.
-        Always computes SHAP explanations internally for richer recommendations.
-        Only includes SHAP in the response when explain=True.
+        SHAP is computed only when:
+        - explain=True, or
+        - the user is classified as High Risk.
 
-        Args:
-            features: DataFrame with the same columns as training data.
-            explain: If True, include SHAP feature explanations in the response.
-
-        Returns:
-            dict with churn_probability, risk_level, business_recommendation,
-            and optionally explanations (list of top feature contributions).
+        This avoids unnecessary inference latency for routine Low- and
+        Medium-Risk requests while preserving evidence-based actions for
+        High-Risk users.
         """
+        if len(features) != 1:
+            raise ValueError("predict() accepts exactly one feature row.")
+
         if self.model is None:
             self._load_model()
 
-        features = self.prepare_features(features)
+        aligned_features = self.align_features(features)
+        model_features = self.transform_features(aligned_features)
 
-        # Predict probability
-        probability = float(self.model.predict_proba(features)[0, 1])
+        probability = float(self.model.predict_proba(model_features)[0, 1])
 
-        # Assess risk level using the model's actual optimal threshold
-        risk_level = assess_risk_level(probability, self.optimal_threshold)
+        risk_level = assess_risk_level(
+            probability,
+            self.optimal_threshold,
+        )
 
-        # Always compute SHAP explanations internally for richer recommendations
-        shap_explanations = self._compute_explanations(features)
+        should_explain = explain or risk_level == "High"
 
-        # Generate business recommendation using SHAP-driven risk signals
+        shap_explanations = None
+
+        if should_explain:
+            shap_explanations = self._compute_explanations(
+                model_features=model_features,
+                display_features=aligned_features,
+            )
+
         recommendation = get_business_recommendation(
             probability=probability,
             risk_level=risk_level,
@@ -147,24 +265,205 @@ class ChurnPredictor:
             shap_explanations=shap_explanations,
         )
 
-        result = {
+        result: dict[str, Any] = {
             "churn_probability": round(probability, 4),
             "risk_level": risk_level,
             "business_recommendation": recommendation,
         }
 
-        # Only include SHAP in the API response if explicitly requested
         if explain and shap_explanations:
             result["explanations"] = shap_explanations
 
         return result
 
-    def _compute_explanations(self, features: pd.DataFrame, top_n: int = 5) -> list[dict] | None:
-        """Compute SHAP feature explanations for a single prediction.
+    def predict_batch(
+        self,
+        features_batch: pd.DataFrame,
+    ) -> list[dict[str, Any]]:
+        """
+        Predict churn for multiple users using vectorized probability scoring.
 
-        Returns the top_n features by absolute SHAP value, with their
-        contribution to the prediction (positive = increases churn risk).
-        Returns None if SHAP computation fails.
+        Batch requests deliberately skip SHAP computation to avoid running an
+        expensive explanation process hundreds of times.
+        """
+        if features_batch.empty:
+            raise ValueError("At least one feature row is required.")
+
+        if self.model is None:
+            self._load_model()
+
+        aligned_features = self.align_features(features_batch)
+        model_features = self.transform_features(aligned_features)
+
+        probabilities = np.asarray(
+            self.model.predict_proba(model_features)[:, 1],
+            dtype=float,
+        )
+
+        results: list[dict[str, Any]] = []
+
+        for probability in probabilities:
+            probability_value = float(probability)
+
+            risk_level = assess_risk_level(
+                probability_value,
+                self.optimal_threshold,
+            )
+
+            recommendation = get_business_recommendation(
+                probability=probability_value,
+                risk_level=risk_level,
+                optimal_threshold=self.optimal_threshold,
+                shap_explanations=None,
+            )
+
+            results.append(
+                {
+                    "churn_probability": round(
+                        probability_value,
+                        4,
+                    ),
+                    "risk_level": risk_level,
+                    "business_recommendation": recommendation,
+                }
+            )
+
+        return results
+
+    def _init_explainer(self) -> None:
+        """Lazily and safely initialize the appropriate SHAP explainer."""
+        if self._shap_explainer is not None:
+            return
+
+        with self._explainer_lock:
+            if self._shap_explainer is not None:
+                return
+
+            import shap
+
+            shap_model = (
+                self.tuned_model if self.tuned_model is not None else self.model
+            )
+
+            if shap_model is None:
+                raise RuntimeError("Cannot initialize SHAP without a model.")
+
+            model_type = type(shap_model).__name__.lower()
+            feature_count = (
+                len(self.feature_names)
+                if self.feature_names
+                else int(
+                    getattr(
+                        shap_model,
+                        "n_features_in_",
+                        1,
+                    )
+                )
+            )
+
+            background = np.zeros(
+                (1, feature_count),
+                dtype=float,
+            )
+
+            try:
+                if any(
+                    model_name in model_type
+                    for model_name in (
+                        "randomforest",
+                        "xgb",
+                        "gradientboosting",
+                        "decisiontree",
+                    )
+                ):
+                    self._shap_explainer = shap.TreeExplainer(shap_model)
+
+                elif "logisticregression" in model_type:
+                    self._shap_explainer = shap.LinearExplainer(
+                        shap_model,
+                        background,
+                    )
+
+                elif hasattr(shap_model, "predict_proba"):
+                    self._shap_explainer = shap.Explainer(
+                        shap_model.predict_proba,
+                        background,
+                    )
+
+                else:
+                    self._shap_explainer = shap.Explainer(
+                        shap_model,
+                        background,
+                    )
+
+            except Exception:
+                logger.warning(
+                    "SHAP explainer initialization failed.",
+                    exc_info=True,
+                )
+                raise
+
+    def _extract_shap_row(
+        self,
+        shap_output: Any,
+    ) -> np.ndarray:
+        """
+        Normalize different SHAP return formats to one feature vector.
+
+        Supported formats include:
+        - shap.Explanation
+        - ndarray
+        - list of class-specific ndarrays
+        - binary-class three-dimensional outputs
+        """
+        values = getattr(
+            shap_output,
+            "values",
+            shap_output,
+        )
+
+        if isinstance(values, (list, tuple)):
+            if not values:
+                raise ValueError("SHAP returned an empty value list.")
+
+            # For binary classification, class index 1 represents churn.
+            values = values[1] if len(values) > 1 else values[0]
+
+        values_array = np.asarray(values)
+
+        if values_array.ndim == 3:
+            # Common format: samples × features × classes.
+            if values_array.shape[-1] > 1:
+                values_array = values_array[:, :, 1]
+            else:
+                values_array = values_array[:, :, 0]
+
+        if values_array.ndim == 2:
+            return np.asarray(
+                values_array[0],
+                dtype=float,
+            )
+
+        if values_array.ndim == 1:
+            return np.asarray(
+                values_array,
+                dtype=float,
+            )
+
+        raise ValueError("Unsupported SHAP output shape: " f"{values_array.shape}")
+
+    def _compute_explanations(
+        self,
+        model_features: pd.DataFrame,
+        display_features: pd.DataFrame,
+        top_n: int = 5,
+    ) -> list[dict[str, Any]] | None:
+        """
+        Compute the largest absolute SHAP contributions.
+
+        model_features contains the transformed values consumed by the model.
+        display_features contains the original aligned values returned to the
+        API so explanations remain understandable.
         """
         try:
             self._init_explainer()
@@ -172,51 +471,75 @@ class ChurnPredictor:
             return None
 
         try:
-            shap_values = self._shap_explainer.shap_values(features.values)
-            shap_val = np.array(shap_values)
+            try:
+                shap_output = self._shap_explainer(model_features)
+            except (TypeError, AttributeError):
+                # Compatibility fallback for older SHAP explainer APIs.
+                shap_output = self._shap_explainer.shap_values(model_features)
 
-            # Extract positive class (churned) from various SHAP formats
-            if shap_val.ndim == 3:
-                # (n_samples, n_features, n_classes) → use class 1
-                shap_val = shap_val[:, :, 1]
-            elif isinstance(shap_values, (list, tuple)) and len(shap_values) == 2:
-                shap_val = np.array(shap_values[1])
-            elif shap_val.ndim == 1:
-                shap_val = shap_val.reshape(1, -1)
+            shap_row = self._extract_shap_row(shap_output)
 
-            contributions = []
-            for i, col in enumerate(features.columns):
-                impact = float(shap_val[0, i]) if shap_val.shape[0] > 0 else 0.0
-                contributions.append({
-                    "feature": col,
-                    "value": float(features.iloc[0, i]),
-                    "impact": round(impact, 4),
-                })
+            if len(shap_row) != len(model_features.columns):
+                raise ValueError(
+                    "SHAP feature count does not match "
+                    "the model input feature count."
+                )
 
-            contributions.sort(key=lambda x: abs(x["impact"]), reverse=True)
+            contributions: list[dict[str, Any]] = []
+
+            for index, column in enumerate(model_features.columns):
+                contributions.append(
+                    {
+                        "feature": column,
+                        "value": float(display_features.iloc[0, index]),
+                        "impact": round(
+                            float(shap_row[index]),
+                            4,
+                        ),
+                    }
+                )
+
+            contributions.sort(
+                key=lambda item: abs(item["impact"]),
+                reverse=True,
+            )
+
             return contributions[:top_n]
 
         except Exception:
-            logger.warning("SHAP computation failed", exc_info=True)
+            logger.warning(
+                "SHAP computation failed.",
+                exc_info=True,
+            )
             return None
 
-    def predict_batch(self, features_batch: pd.DataFrame) -> list[dict]:
-        """Predict churn for multiple users."""
-        results = []
-        for idx in range(len(features_batch)):
-            row = features_batch.iloc[[idx]]
-            result = self.predict(row)
-            results.append(result)
-        return results
 
-
-# Singleton instance for use across the API
 _predictor: ChurnPredictor | None = None
+_predictor_lock = threading.Lock()
 
 
 def get_predictor() -> ChurnPredictor:
-    """Get or create the global predictor instance."""
+    """Get or create the process-wide predictor instance."""
     global _predictor
-    if _predictor is None:
-        _predictor = ChurnPredictor()
+
+    if _predictor is not None:
+        return _predictor
+
+    with _predictor_lock:
+        if _predictor is None:
+            _predictor = ChurnPredictor()
+
     return _predictor
+
+
+def reset_predictor() -> None:
+    """
+    Reset the singleton.
+
+    Intended for automated tests that replace model artifacts or monkeypatch
+    predictor behavior.
+    """
+    global _predictor
+
+    with _predictor_lock:
+        _predictor = None

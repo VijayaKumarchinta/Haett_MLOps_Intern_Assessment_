@@ -1,214 +1,487 @@
 """
-FastAPI Prediction Service for Haett Churn Prediction System
-Provides POST /predict endpoint returning churn probability, risk level, and business recommendations.
+FastAPI prediction service for the Haett Churn Prediction System.
+
+Endpoints:
+- GET  /
+- GET  /health
+- POST /predict
+- POST /predict/batch
 """
 
-import pandas as pd
-import numpy as np
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional
-from fastapi import Query
-import sys
-from pathlib import Path
+from __future__ import annotations
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+import logging
 import os
+from contextlib import asynccontextmanager
+from typing import Self
+
+import pandas as pd
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.models.predict import ChurnPredictor, get_predictor
-from src.utils.config import MODELS_DIR
+
+logger = logging.getLogger(__name__)
+
+API_VERSION = "1.0.0"
+
+
+# ---------------------------------------------------------------------------
+# Application configuration
+# ---------------------------------------------------------------------------
+
+
+def _get_cors_origins() -> list[str]:
+    """
+    Read allowed CORS origins from the CORS_ORIGINS environment variable.
+
+    Examples:
+        CORS_ORIGINS=*
+        CORS_ORIGINS=https://example.com,https://admin.example.com
+    """
+    raw_origins = os.getenv("CORS_ORIGINS", "*").strip()
+
+    if not raw_origins or raw_origins == "*":
+        return ["*"]
+
+    return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """
+    Load and validate the prediction model when the API starts.
+
+    The API fails immediately when model artifacts are unavailable instead
+    of attempting to train a model inside the web service.
+    """
+    try:
+        predictor = get_predictor()
+
+        if predictor.model is None:
+            raise RuntimeError("The churn model was not loaded.")
+
+        logger.info(
+            "Haett churn model loaded successfully. Threshold: %.4f",
+            predictor.optimal_threshold,
+        )
+
+    except Exception as exc:
+        logger.critical(
+            "Application startup failed because model artifacts "
+            "could not be loaded.",
+            exc_info=True,
+        )
+
+        raise RuntimeError(
+            "Model startup validation failed. Ensure the required "
+            "artifacts exist in the models directory."
+        ) from exc
+
+    yield
+
+    logger.info("Haett Churn Prediction API shutting down.")
+
 
 app = FastAPI(
     title="Haett Churn Prediction API",
-    description="ML-powered churn prediction for the Haett meal delivery platform. "
-    "Predicts user churn probability within the next 30 days and provides "
-    "actionable business recommendations.",
-    version="1.0.0",
+    description=(
+        "ML-powered churn prediction for the Haett meal delivery platform. "
+        "Predicts whether a user may churn within the next 30 days and "
+        "provides an actionable retention recommendation."
+    ),
+    version=API_VERSION,
+    lifespan=lifespan,
 )
 
-# CORS - allow all origins for development
+cors_origins = _get_cors_origins()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=cors_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# ─── Startup: Auto-train if no model exists ─────────────────────────────────
-
-
-@app.on_event("startup")
-async def auto_train_on_startup():
-    """Automatically run the pipeline if no trained model is found.
-    This makes the API self-contained: just start the server and it works."""
-    model_path = MODELS_DIR / "churn_model.pkl"
-    if not model_path.exists():
-        print("[startup] No trained model found. Running pipeline automatically...")
-        print("[startup] This may take a few minutes.")
-        try:
-            import subprocess
-            import sys
-
-            # Use fast mode (no hyperparameter tuning) for quick startup
-            env = {**os.environ, "N_HPARAM_ITER": "5"}
-            result = subprocess.run(
-                [sys.executable, "src/run_pipeline.py"],
-                cwd=MODELS_DIR.parent,
-                env=env,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0:
-                print("[startup] Pipeline completed successfully.")
-            else:
-                print(f"[startup] Pipeline failed:\n{result.stderr}")
-        except Exception as e:
-            print(f"[startup] Could not auto-train: {e}")
-            print("[startup] You can manually run: python run.py")
-
-
-# ─── Request/Response Schemas ─────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Request and response schemas
+# ---------------------------------------------------------------------------
 
 
 class ChurnPredictionRequest(BaseModel):
-    """Single user churn prediction request.
+    """Input features for one churn prediction."""
 
-    Features align with the assessment criteria:
-    - Days since last order, Orders in last 30 days, Average order value
-    - Subscription duration, Coupon usage, Meal swap frequency, Order consistency
-    """
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
 
-    user_id: int = Field(..., description="Unique user identifier", ge=1)
+    user_id: int = Field(
+        ...,
+        ge=1,
+        description="Unique user identifier.",
+    )
 
     # Recency
-    days_since_last_order: float = Field(default=0, ge=0, description="Days since user's last order")
-    tenure_days: int = Field(default=0, ge=0, description="Days since first order")
+    days_since_last_order: float = Field(
+        default=0,
+        ge=0,
+        description="Number of days since the user's latest order.",
+    )
 
-    # Frequency & Order consistency
-    total_orders: int = Field(default=0, ge=0, description="Total number of orders placed")
-    std_days_between_orders: float = Field(default=0, ge=0, description="Order consistency (std dev of days between orders)")
-    orders_last_30_days: int = Field(default=0, ge=0, description="Orders placed in the last 30 days")
+    tenure_days: int = Field(
+        default=0,
+        ge=0,
+        description="Number of days since the user's first order.",
+    )
 
-    # Monetary & Coupon usage
-    avg_order_value: float = Field(default=0, ge=0, description="Average order value ($)")
-    avg_rating: float = Field(default=3.5, ge=1, le=5, description="Average order rating (1-5)")
-    coupon_usage_count: int = Field(default=0, ge=0, description="Number of orders where coupon was used")
-    coupon_usage_rate: float = Field(default=0, ge=0, le=1, description="Fraction of orders with coupon")
+    # Frequency and consistency
+    total_orders: int = Field(
+        default=0,
+        ge=0,
+        description="Total number of orders placed.",
+    )
+
+    std_days_between_orders: float = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Standard deviation of days between orders. "
+            "Higher values indicate lower ordering consistency."
+        ),
+    )
+
+    orders_last_30_days: int = Field(
+        default=0,
+        ge=0,
+        description="Orders placed during the previous 30 days.",
+    )
+
+    # Monetary and coupon usage
+    avg_order_value: float = Field(
+        default=0,
+        ge=0,
+        description="Average monetary value of an order.",
+    )
+
+    avg_rating: float = Field(
+        default=3.5,
+        ge=1,
+        le=5,
+        description="Average order rating from 1 to 5.",
+    )
+
+    coupon_usage_count: int = Field(
+        default=0,
+        ge=0,
+        description="Number of orders where a coupon was used.",
+    )
+
+    coupon_usage_rate: float = Field(
+        default=0,
+        ge=0,
+        le=1,
+        description="Proportion of orders where a coupon was used.",
+    )
 
     # Subscription
-    n_plan_changes: int = Field(default=0, ge=0, description="Number of plan changes")
-    monthly_price: float = Field(default=0, ge=0, description="Current monthly subscription price ($)")
-    subscription_tenure_days: int = Field(default=0, ge=0, description="Subscription duration in days")
+    n_plan_changes: int = Field(
+        default=0,
+        ge=0,
+        description="Number of subscription plan changes.",
+    )
 
-    # Engagement & Meal swap frequency
-    avg_app_logins: float = Field(default=0, ge=0, description="Average weekly app logins")
-    avg_meals_skipped: float = Field(default=0, ge=0, description="Meal swap frequency (avg meals skipped per week)")
-    total_support_tickets: int = Field(default=0, ge=0, description="Total support tickets submitted")
+    monthly_price: float = Field(
+        default=0,
+        ge=0,
+        description="Current monthly subscription price.",
+    )
+
+    subscription_tenure_days: int = Field(
+        default=0,
+        ge=0,
+        description="Current subscription duration in days.",
+    )
+
+    # Engagement
+    avg_app_logins: float = Field(
+        default=0,
+        ge=0,
+        description="Average number of weekly application logins.",
+    )
+
+    avg_meals_skipped: float = Field(
+        default=0,
+        ge=0,
+        description="Average number of meals skipped per week.",
+    )
+
+    total_support_tickets: int = Field(
+        default=0,
+        ge=0,
+        description="Total number of support tickets submitted.",
+    )
 
     # Demographic
-    age: int = Field(default=30, ge=18, le=100, description="User age")
-    age_group_code: int = Field(default=0, ge=0, description="Age group (0=young_adult, 1=adult, 2=middle_age, 3=senior)")
+    age: int = Field(
+        default=30,
+        ge=18,
+        le=100,
+        description="User age.",
+    )
+
+    age_group_code: int = Field(
+        default=0,
+        ge=0,
+        le=3,
+        description=(
+            "Age group code: 0=young adult, 1=adult, " "2=middle age, 3=senior."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def validate_business_rules(self) -> Self:
+        """Validate relationships between multiple request fields."""
+
+        if self.orders_last_30_days > self.total_orders:
+            raise ValueError("orders_last_30_days cannot exceed total_orders.")
+
+        if self.coupon_usage_count > self.total_orders:
+            raise ValueError("coupon_usage_count cannot exceed total_orders.")
+
+        if self.subscription_tenure_days > self.tenure_days:
+            raise ValueError("subscription_tenure_days cannot exceed tenure_days.")
+
+        if self.tenure_days > 0 and self.days_since_last_order > self.tenure_days:
+            raise ValueError("days_since_last_order cannot exceed tenure_days.")
+
+        if self.total_orders == 0:
+            if self.orders_last_30_days != 0:
+                raise ValueError(
+                    "orders_last_30_days must be 0 when total_orders is 0."
+                )
+
+            if self.coupon_usage_count != 0:
+                raise ValueError("coupon_usage_count must be 0 when total_orders is 0.")
+
+            if self.coupon_usage_rate != 0:
+                raise ValueError("coupon_usage_rate must be 0 when total_orders is 0.")
+
+        return self
 
 
 class FeatureExplanation(BaseModel):
-    """SHAP explanation for a single feature."""
+    """SHAP contribution for one model feature."""
 
     feature: str
     value: float
-    impact: float = Field(..., description="Positive = increases churn risk, Negative = decreases churn risk")
+
+    impact: float = Field(
+        ...,
+        description=(
+            "Positive values increase churn risk; "
+            "negative values decrease churn risk."
+        ),
+    )
 
 
 class ChurnPredictionResponse(BaseModel):
-    """Churn prediction response."""
+    """Response returned for one churn prediction."""
 
     user_id: int
-    churn_probability: float = Field(..., ge=0, le=1)
-    risk_level: str = Field(..., pattern="^(Low|Medium|High)$")
+
+    churn_probability: float = Field(
+        ...,
+        ge=0,
+        le=1,
+    )
+
+    risk_level: str = Field(
+        ...,
+        pattern="^(Low|Medium|High)$",
+    )
+
     business_recommendation: str
+
     explanations: list[FeatureExplanation] | None = Field(
         default=None,
-        description="Top 5 feature contributions via SHAP. Only included when ?explain=true. "
-        "Positive impact = increases churn risk, Negative = decreases churn risk.",
+        description=("Top model feature contributions. " "Included when explain=true."),
     )
 
 
 class BatchPredictionRequest(BaseModel):
-    """Batch prediction request."""
+    """Input for batch churn prediction."""
 
-    users: list[ChurnPredictionRequest] = Field(..., min_length=1, max_length=1000)
+    model_config = ConfigDict(extra="forbid")
+
+    users: list[ChurnPredictionRequest] = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+    )
+
+
+class BatchPredictionItem(BaseModel):
+    """One result inside a batch prediction response."""
+
+    user_id: int
+
+    churn_probability: float = Field(
+        ...,
+        ge=0,
+        le=1,
+    )
+
+    risk_level: str = Field(
+        ...,
+        pattern="^(Low|Medium|High)$",
+    )
+
+    business_recommendation: str
+
+
+class BatchPredictionResponse(BaseModel):
+    """Response returned for batch prediction."""
+
+    users: list[BatchPredictionItem]
+
+    total: int = Field(
+        ...,
+        ge=1,
+    )
 
 
 class HealthResponse(BaseModel):
-    """Health check response."""
+    """Health-check response."""
 
-    status: str
+    status: str = Field(
+        ...,
+        pattern="^(healthy|degraded)$",
+    )
+
     model_loaded: bool
     version: str
 
 
-# ─── API Endpoints ────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
 
-def _prepare_features(predictor, request_dict: dict) -> pd.DataFrame:
-    """Convert a request dict to a properly ordered feature DataFrame."""
-    features = pd.DataFrame([request_dict])
+def _get_ready_predictor() -> ChurnPredictor:
+    """Return the loaded predictor or raise an HTTP 503 response."""
 
-    if predictor.feature_names:
-        # Build a feature vector using the model's expected columns
-        feature_dict = {}
-        for col in predictor.feature_names:
-            if col in features.columns:
-                feature_dict[col] = features[col].values[0]
-            else:
-                feature_dict[col] = 0  # default for missing features
-        return pd.DataFrame([feature_dict])
+    try:
+        predictor = get_predictor()
 
-    return features
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Prediction model artifacts are unavailable.",
+        ) from exc
+
+    except Exception as exc:
+        logger.exception("Unable to initialize the prediction model.")
+
+        raise HTTPException(
+            status_code=503,
+            detail="Prediction service is temporarily unavailable.",
+        ) from exc
+
+    if predictor.model is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Prediction model is not loaded.",
+        )
+
+    return predictor
 
 
-@app.get("/health", response_model=HealthResponse, tags=["System"])
-async def health_check():
-    """Health check endpoint."""
+def _requests_to_features(
+    requests: ChurnPredictionRequest | list[ChurnPredictionRequest],
+) -> pd.DataFrame:
+    """
+    Convert one or more validated requests into a feature DataFrame.
+
+    user_id is excluded because it identifies the API response record and
+    should not be used as a machine-learning feature.
+    """
+
+    request_list = requests if isinstance(requests, list) else [requests]
+
+    return pd.DataFrame(
+        [request.model_dump(exclude={"user_id"}) for request in request_list]
+    )
+
+
+# ---------------------------------------------------------------------------
+# API endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.get(
+    "/health",
+    response_model=HealthResponse,
+    tags=["System"],
+)
+def health_check() -> HealthResponse:
+    """Report whether the prediction model is available."""
+
     try:
         predictor = get_predictor()
         model_loaded = predictor.model is not None
+
     except Exception:
         model_loaded = False
 
     return HealthResponse(
         status="healthy" if model_loaded else "degraded",
         model_loaded=model_loaded,
-        version="1.0.0",
+        version=API_VERSION,
     )
 
 
-@app.post("/predict", response_model=ChurnPredictionResponse, tags=["Prediction"])
-async def predict_churn(
+@app.post(
+    "/predict",
+    response_model=ChurnPredictionResponse,
+    tags=["Prediction"],
+)
+def predict_churn(
     request: ChurnPredictionRequest,
-    explain: bool = Query(False, description="Include SHAP feature explanations in the response"),
-):
+    explain: bool = Query(
+        default=False,
+        description=("Include the top SHAP feature contributions " "in the response."),
+    ),
+) -> ChurnPredictionResponse:
     """
-    Predict churn probability for a single user.
+    Predict churn for one user.
 
-    Takes user features and returns:
-    - churn_probability: probability of churning within next 30 days
-    - risk_level: Low (< 30%), Medium (30-60%), or High (> 60%)
-    - business_recommendation: actionable retention recommendation
-
-    Add ?explain=true to also receive the top 5 feature contributions via SHAP.
+    Risk levels are calculated using the optimal threshold produced by the
+    training pipeline.
     """
+
+    predictor = _get_ready_predictor()
+    features = _requests_to_features(request)
+
     try:
-        predictor = get_predictor()
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        result = predictor.predict(
+            features=features,
+            explain=explain,
+        )
 
-    features_ordered = _prepare_features(predictor, request.model_dump())
+    except Exception as exc:
+        logger.exception(
+            "Prediction failed for user_id=%s.",
+            request.user_id,
+        )
 
-    # Predict with optional SHAP explanations
-    result = predictor.predict(features_ordered, explain=explain)
+        raise HTTPException(
+            status_code=500,
+            detail="The prediction could not be completed.",
+        ) from exc
 
     return ChurnPredictionResponse(
         user_id=request.user_id,
@@ -219,41 +492,80 @@ async def predict_churn(
     )
 
 
-@app.post("/predict/batch", tags=["Prediction"])
-async def predict_churn_batch(request: BatchPredictionRequest):
+@app.post(
+    "/predict/batch",
+    response_model=BatchPredictionResponse,
+    tags=["Prediction"],
+)
+def predict_churn_batch(
+    request: BatchPredictionRequest,
+) -> BatchPredictionResponse:
     """
-    Predict churn probability for multiple users (up to 1000 at a time).
+    Predict churn for between 1 and 1,000 users.
 
-    Returns a list of predictions with the same structure as the single prediction endpoint.
+    Probability scoring is vectorized. SHAP explanations are disabled for
+    batch predictions to avoid excessive latency.
     """
+
+    predictor = _get_ready_predictor()
+    features = _requests_to_features(request.users)
+
     try:
-        predictor = get_predictor()
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        prediction_results = predictor.predict_batch(features)
 
-    results = []
-    for user_request in request.users:
-        features_ordered = _prepare_features(predictor, user_request.model_dump())
+        if not isinstance(prediction_results, list):
+            raise TypeError("predict_batch() must return a list.")
 
-        result = predictor.predict(features_ordered)
+        if len(prediction_results) != len(request.users):
+            raise ValueError(
+                "Prediction count does not match input count. "
+                f"Expected {len(request.users)}, "
+                f"received {len(prediction_results)}."
+            )
 
-        results.append({
-            "user_id": user_request.user_id,
-            "churn_probability": result["churn_probability"],
-            "risk_level": result["risk_level"],
-            "business_recommendation": result["business_recommendation"],
-        })
+    except Exception as exc:
+        logger.exception(
+            "Batch prediction failed for %d users.",
+            len(request.users),
+        )
 
-    return {"users": results, "total": len(results)}
+        raise HTTPException(
+            status_code=500,
+            detail="The batch prediction could not be completed.",
+        ) from exc
+
+    response_items = [
+        BatchPredictionItem(
+            user_id=user_request.user_id,
+            churn_probability=result["churn_probability"],
+            risk_level=result["risk_level"],
+            business_recommendation=result["business_recommendation"],
+        )
+        for user_request, result in zip(
+            request.users,
+            prediction_results,
+            strict=True,
+        )
+    ]
+
+    return BatchPredictionResponse(
+        users=response_items,
+        total=len(response_items),
+    )
 
 
-@app.get("/", tags=["System"])
-async def root():
-    """Root endpoint with API info and links."""
+@app.get(
+    "/",
+    tags=["System"],
+)
+def root() -> dict[str, str]:
+    """Return basic API information."""
+
     return {
         "service": "Haett Churn Prediction API",
-        "version": "1.0.0",
+        "version": API_VERSION,
         "docs": "/docs",
         "health": "/health",
         "predict": "/predict",
+        "batch_predict": "/predict/batch",
     }
