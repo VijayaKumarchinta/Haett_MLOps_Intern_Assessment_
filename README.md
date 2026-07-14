@@ -1,567 +1,600 @@
-# 🍱 Haett MLOps Churn Prediction System
+<div align="center">
 
-> **End-to-end machine learning system to predict user churn for the Haett healthy meal delivery platform.**
->
-> Built for the **Haett MLOps Intern Assessment**
+# 🥗 Haett MLOps Churn Prediction System
 
-[![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)]()
-[![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)]()
-[![XGBoost](https://img.shields.io/badge/XGBoost-FF6600?style=for-the-badge&logo=xgboost&logoColor=white)]()
-[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)]()
-[![MLflow](https://img.shields.io/badge/MLflow-0194E2?style=for-the-badge&logo=mlflow&logoColor=white)]()
-[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)]()
+### Production-style customer churn prediction for a healthy meal subscription platform
 
----
+[![CI](https://github.com/VijayaKumarchinta/Haett_MLOps_Intern_Assessment_/actions/workflows/ci.yml/badge.svg)](https://github.com/VijayaKumarchinta/Haett_MLOps_Intern_Assessment_/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![MLflow](https://img.shields.io/badge/MLflow-Tracking-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-Model-F7931E?logo=scikitlearn&logoColor=white)](https://scikit-learn.org/)
+[![Tests](https://img.shields.io/badge/Tests-45%20Passed-success?logo=pytest&logoColor=white)](#-testing-and-code-quality)
+[![SHAP](https://img.shields.io/badge/Explainability-SHAP-8A2BE2)](https://shap.readthedocs.io/)
 
-## 📋 Table of Contents
+<br>
 
-- [🌟 Overview](#-overview)
-- [🏗️ Architecture](#-architecture)
-- [🎯 Assessment Criteria](#-assessment-criteria)
-- [🚀 Quick Start](#-quick-start)
-- [📊 Pipeline Steps](#-pipeline-steps)
-- [📡 API Reference](#-api-reference)
-  - [User Scenarios](#-user-scenarios)
-  - [SHAP Explainability](#-with-shap-explanations)
-- [📸 Screenshots](#-screenshots)
-- [🧪 Testing](#-testing)
-- [🐳 Docker](#-docker)
-- [📈 MLOps Practices](#-mlops-practices)
-- [📋 Submission Checklist](#-submission-checklist)
-- [🔮 Future Improvements](#-future-improvements)
+**Data Engineering · Machine Learning · Experiment Tracking · FastAPI · Docker · Testing · Monitoring**
+
+[Overview](#-overview) •
+[Architecture](#-architecture) •
+[Quick Start](#-quick-start) •
+[API](#-api-endpoints) •
+[Test Cases](#-three-api-test-cases) •
+[Docker](#-docker-deployment) •
+[Results](#-final-model-results)
+
+</div>
 
 ---
 
-## 🌟 Overview
+## 📌 Overview
 
-This project predicts which users are likely to **churn (cancel their subscription) within the next 30 days** on the Haett meal delivery platform. The system takes user historical activity as input and returns:
+Haett is a subscription-based healthy meal delivery platform. This project predicts whether an active customer is likely to stop ordering or fail to renew their subscription within the next **30 days**.
 
-1. **Churn probability** — how likely the user is to churn
-2. **Risk level** — **Low**, **Medium**, or **High** (using the model's optimal decision threshold)
-3. **Business recommendation** — SHAP-driven retention suggestion with risk signals, strengths, and actions
+The system returns:
 
-### Key Deliverables
-
-| Deliverable | Status |
+| Output | Description |
 |---|---|
-| Synthetic dataset (5,000 users) | ✅ Complete |
-| 30 features matching assessment criteria | ✅ Complete |
-| Multi-model training (LR, RF, XGBoost) | ✅ Complete — XGBoost best (F1=0.28, ROC-AUC=0.76) |
-| MLflow experiment tracking | ✅ Complete |
-| FastAPI with `POST /predict` endpoint | ✅ Complete |
-| **SHAP-driven business recommendations** | ✅ Complete |
-| Docker containerization | ✅ Complete |
-| CI/CD GitHub Actions | ✅ Bonus |
-| SHAP explainability | ✅ Bonus |
-| Data drift detection | ✅ Bonus |
+| `churn_probability` | Probability that the customer will churn |
+| `risk_level` | `Low`, `Medium`, or `High` risk |
+| `business_recommendation` | Actionable retention recommendation |
+| `explanations` | Optional SHAP feature contributions |
 
----
+The implementation includes a complete ML lifecycle:
 
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    DATA PIPELINE                         │
-│  ┌──────────┐    ┌────────────┐    ┌──────────────────┐  │
-│  │ Generate │ →  │ Preprocess │ →  │ Feature Engineer │  │
-│  │  Data    │    │   Data     │    │     ing          │  │
-│  └──────────┘    └────────────┘    └────────┬─────────┘  │
-│                                              │           │
-│                                              ▼           │
-│                                      ┌──────────────────┐ │
-│                                      │   Train Models    │ │
-│                                      │  (MLflow Tracked) │ │
-│                                      └────────┬─────────┘ │
-│                                               │           │
-│                                               ▼           │
-│                                      ┌──────────────────┐ │
-│                                      │   Best Model     │ │
-│                                      │   (joblib)       │ │
-│                                      └────────┬─────────┘ │
-└──────────────────────────────────────┬────────┘──────────┘
-                                       │
-                                       ▼
-┌──────────────────────────────────────┴──────────────────┐
-│                    API SERVICE (FastAPI)                │
-│  ┌──────────────────────────────────────────────────┐   │
-│  │              POST /predict                       │   │
-│  │  User Features → Churn Probability               │   │
-│  │                → Risk Level (Low/Medium/High)    │   │
-│  │                → SHAP-driven Recommendation      │   │
-│  │                → [Optional] Feature Explanations │   │
-│  └──────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
+```text
+Data generation → Validation → Feature engineering → Training
+→ MLflow tracking → Model artifacts → FastAPI → Docker
+→ Tests → Drift monitoring
 ```
 
 ---
 
-## 🎯 Assessment Criteria
+## ✨ Key Features
 
-The feature set was designed to match the **7 criteria features** specified in the assessment:
-
-| # | Criteria Feature | Our Feature | Source Module |
-|---|---|---|---|
-| 1 | Days since last order | `days_since_last_order` | Recency |
-| 2 | Orders in the last 30 days | `orders_last_30_days` | Frequency |
-| 3 | Average order value | `avg_order_value` | Monetary |
-| 4 | Subscription duration | `subscription_tenure_days` | Subscription |
-| 5 | **Coupon usage** | `coupon_usage_count`, `coupon_usage_rate` | ⭐ Added |
-| 6 | Meal swap frequency | `avg_meals_skipped` | Engagement |
-| 7 | Order consistency | `std_days_between_orders` | Frequency |
-
-**Total features: 30** (including one-hot encoded demographics)
-
-### Target Leakage Prevention
-
-Features that could leak future information were **removed**:
-- ❌ `is_sub_active` — if subscription already cancelled, user can't churn again
-- ❌ `days_since_cancellation` — directly reveals if user already cancelled
-- ❌ `total_subscription_days` — 0 means never subscribed, can't churn
-- ❌ `cancellation_reason_*` — non-empty reason implies already cancelled
+- **End-to-end ML pipeline** with reusable modules
+- **30 engineered features** across customer activity, orders, subscriptions, and engagement
+- **Three candidate models:** Logistic Regression, Random Forest, and XGBoost
+- **MLflow experiment tracking** for parameters, metrics, and artifacts
+- **FastAPI inference service** with single and batch endpoints
+- **Pydantic validation** with cross-field business rules
+- **SHAP explainability** for supported single predictions
+- **Risk-based retention recommendations**
+- **Lightweight Docker deployment** using pre-trained artifacts
+- **Automated test suite:** 45 passing tests
+- **GitHub Actions CI**
+- **Reference-based drift monitoring**
 
 ---
 
-## 🚀 Quick Start
+## 🏗 Architecture
+
+```mermaid
+flowchart LR
+    A[User, Order and Subscription Data] --> B[Data Validation]
+    B --> C[Feature Engineering]
+    C --> D[Model Training]
+    D --> E[Model Evaluation]
+    D --> F[MLflow Tracking]
+    E --> G[Saved Model Artifacts]
+    G --> H[FastAPI Service]
+    H --> I[Churn Probability]
+    H --> J[Risk Level]
+    H --> K[Retention Recommendation]
+    H --> L[Optional SHAP Explanation]
+    G --> M[Docker Inference Image]
+    C --> N[Drift Reference Data]
+```
+
+### Training and inference are separated
+
+| Workflow | Responsibility |
+|---|---|
+| Training | Generate data, preprocess, engineer features, train models, evaluate, and save artifacts |
+| Inference | Load existing model artifacts and serve predictions |
+| Docker build | Package the API and trained artifacts without retraining |
+| Monitoring | Compare incoming data with stored reference distributions |
+
+---
+
+## 📊 Final Model Results
+
+The training pipeline compares Logistic Regression, Random Forest, and XGBoost.
+
+| Metric | Final value |
+|---|---:|
+| **Selected model** | **Logistic Regression** |
+| F1 score | 0.2695 |
+| ROC-AUC | 0.7519 |
+| PR-AUC | 0.1779 |
+| Precision | 0.1939 |
+| Recall | 0.4419 |
+| Optimal threshold | 0.1518 |
+
+> The churn dataset is intentionally imbalanced. For this reason, PR-AUC, recall, F1 score, Brier score, and lift are considered alongside ROC-AUC.
+
+---
+
+## 🧠 Feature Engineering
+
+The model uses **30 engineered features**.
+
+| Group | Example features |
+|---|---|
+| Recency | `days_since_last_order`, `tenure_days` |
+| Frequency | `total_orders`, `orders_last_30_days` |
+| Consistency | `std_days_between_orders` |
+| Monetary | `avg_order_value`, `avg_rating` |
+| Coupon behavior | `coupon_usage_count`, `coupon_usage_rate` |
+| Subscription | `subscription_tenure_days`, `monthly_price`, `n_plan_changes` |
+| Engagement | `avg_app_logins`, `avg_meals_skipped`, `total_support_tickets` |
+| Demographics | `age`, `age_group_code`, encoded categorical features |
+
+Potential leakage fields such as cancellation status and cancellation reason are excluded from training.
+
+---
+
+## 🗂 Project Structure
+
+```text
+.
+├── .github/
+│   └── workflows/                 # GitHub Actions CI
+├── data/                          # Raw, processed, and feature data
+├── models/                        # Deployment model artifacts
+├── monitoring/                    # Drift reference data and reports
+├── screenshots/                   # MLflow and assessment evidence
+├── scripts/                       # Utility scripts
+├── src/
+│   ├── api/                       # FastAPI application
+│   ├── data/                      # Data generation and preprocessing
+│   ├── models/                    # Training and prediction modules
+│   ├── monitoring/                # Drift detection
+│   └── utils/                     # Configuration and metrics
+├── tests/                         # Automated test suite
+├── Dockerfile                     # Lightweight inference image
+├── docker-compose.yml             # API and MLflow services
+├── requirements.txt               # Training dependencies
+├── requirements-api.txt           # Inference dependencies
+├── requirements-dev.txt           # Development and test dependencies
+└── README.md
+```
+
+---
+
+## ⚡ Quick Start
 
 ### Prerequisites
 
 - Python 3.11+
 - pip
+- Docker and Docker Compose for containerized execution
 
-### 1. Clone & Setup
+### Clone the repository
 
 ```bash
-cd F:\Projects\HaettMLOps
-python -m venv venv
-.\venv\Scripts\activate     # Windows
-pip install -r requirements.txt
+git clone https://github.com/VijayaKumarchinta/Haett_MLOps_Intern_Assessment_.git
+cd Haett_MLOps_Intern_Assessment_
 ```
 
-### 2. Run the Full Pipeline (Data → Features → Training)
+### Create a virtual environment
+
+```bash
+python -m venv .venv
+```
+
+Linux or macOS:
+
+```bash
+source .venv/bin/activate
+```
+
+Windows PowerShell:
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+### Install dependencies
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements-dev.txt
+```
+
+---
+
+## 🔄 Run the Training Pipeline
 
 ```bash
 python src/run_pipeline.py
 ```
 
-**What happens:**
-1. Generates 5,000 synthetic users with orders, subscriptions, and engagement data
-2. Cleans and preprocesses all raw data
-3. Engineers **30 features** matching the 7 assessment criteria
-4. Trains **3 models** (Logistic Regression, Random Forest, XGBoost) with hyperparameter tuning
-5. Tracks all experiments in **MLflow**
-6. Selects and saves the **best model**
+The pipeline:
 
-**Sample output:**
-```
-[Best] Best model: xgb_classifier
-   F1 Score: 0.2835
-   ROC-AUC: 0.7587
-   PR-AUC:  0.1891
-   Features: 30
-   Optimal threshold: 0.1620
-```
+1. Generates realistic synthetic customer behavior.
+2. Validates and cleans the data.
+3. Creates churn-prediction features.
+4. Trains multiple models.
+5. Evaluates model performance.
+6. Logs experiments to MLflow.
+7. Saves the final deployment artifacts.
+8. Stores reference data for drift monitoring.
 
-### 3. Start the Prediction API
+### Deployment artifacts
 
-```bash
-python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
-```
-
-### 4. Open in Browser
-
-| Link | What you'll see |
-|---|---|
-| [**http://localhost:8000/docs**](http://localhost:8000/docs) | Interactive Swagger API documentation |
-| [**http://localhost:8000/health**](http://localhost:8000/health) | Health check JSON |
-| [**http://localhost:5000**](http://localhost:5000) | MLflow experiment tracking dashboard |
-
-### One-Command Runner
-
-```bash
-python run.py --all    # Pipeline + API in one command
-python run.py --fast   # Quick pipeline (no tuning)
-python run.py          # Full pipeline only
+```text
+models/
+├── churn_model.pkl
+├── tuned_model.pkl
+├── scaler.pkl
+├── feature_names.txt
+├── optimal_threshold.txt
+└── model_metadata.json
 ```
 
 ---
 
-## 📊 Pipeline Steps
+## 📈 MLflow Experiment Tracking
 
-| Step | Script | Description | Output |
-|---|---|---|---|
-| 1. Data Generation | `src/data/generate_data.py` | Creates 5,000 synthetic users with orders, subscriptions, engagement (includes coupon_usage) | `data/raw/*.csv` |
-| 2. Preprocessing | `src/data/preprocess.py` | Cleans, validates, and standardizes raw data | `data/processed/*.csv` |
-| 3. Feature Engineering | `src/data/feature_engineering.py` | Builds **30 features** matching the 7 assessment criteria | `data/features/*.csv` |
-| 4. Model Training | `src/models/train.py` | Trains LR, RF, XGBoost with MLflow tracking + hyperparameter tuning | `models/churn_model.pkl` |
+Start the MLflow UI:
 
-### Feature Groups (30 total)
+```bash
+mlflow ui \
+  --backend-store-uri mlruns \
+  --host 0.0.0.0 \
+  --port 5000
+```
 
-| Group | Features |
-|---|---|
-| **Recency** | `days_since_last_order`, `tenure_days` |
-| **Frequency** | `total_orders`, `std_days_between_orders` (order consistency), `orders_last_30_days` |
-| **Monetary** | `avg_order_value`, `avg_rating`, `coupon_usage_count`, `coupon_usage_rate` |
-| **Subscription** | `n_plan_changes`, `monthly_price`, `subscription_tenure_days` |
-| **Engagement** | `avg_app_logins`, `avg_meals_skipped` (meal swap frequency), `total_support_tickets` |
-| **Demographic** | `age`, `age_group_code`, diet one-hot (6), referral one-hot (7) |
+Open:
+
+```text
+http://localhost:5000
+```
+
+Tracked items include:
+
+- hyperparameters
+- evaluation metrics
+- optimal classification threshold
+- feature-importance artifacts
+- serialized model artifacts
 
 ---
 
-## 📡 API Reference
+## 🚀 Run the API Locally
 
-### Health Check
-
-```http
-GET /health
+```bash
+python -m uvicorn src.api.main:app \
+  --host 0.0.0.0 \
+  --port 8000
 ```
 
-```json
-{"status": "healthy", "model_loaded": true, "version": "1.0.0"}
+Swagger documentation:
+
+```text
+http://localhost:8000/docs
 ```
 
-### Predict Churn (Single User)
+---
 
-```http
-POST /predict
+## 🔌 API Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/` | Service information |
+| `GET` | `/health` | API and model health |
+| `POST` | `/predict` | Single-user prediction |
+| `POST` | `/predict?explain=true` | Prediction with SHAP explanations |
+| `POST` | `/predict/batch` | Vectorized batch predictions |
+| `GET` | `/docs` | Interactive Swagger documentation |
+
+---
+
+## 🧪 Three API Test Cases
+
+### Test Case 1 — Health check
+
+**Purpose:** Verify that the API is running and that the model loaded successfully.
+
+```bash
+curl -sS http://localhost:8000/health | python -m json.tool
 ```
 
-**Request Body (18 fields):**
+Expected result:
 
 ```json
 {
-  "user_id": 1,
-  "days_since_last_order": 1,
-  "tenure_days": 600,
-  "total_orders": 80,
-  "std_days_between_orders": 2.5,
-  "orders_last_30_days": 10,
-  "avg_order_value": 45,
-  "avg_rating": 4.8,
-  "coupon_usage_count": 0,
-  "coupon_usage_rate": 0,
-  "n_plan_changes": 0,
-  "monthly_price": 99.99,
-  "subscription_tenure_days": 580,
-  "avg_app_logins": 15,
-  "avg_meals_skipped": 0,
-  "total_support_tickets": 0,
-  "age": 45,
-  "age_group_code": 2
+  "status": "healthy",
+  "model_loaded": true,
+  "version": "1.0.0"
 }
 ```
 
 ---
 
-### 👤 User Scenarios
+### Test Case 2 — Valid low-risk prediction with SHAP
 
-#### ✅ Scenario 1: Low Risk — Power User (Loyal Customer)
-
-A loyal, long-term customer with high engagement, no support issues, and excellent ratings.
+**Purpose:** Verify prediction, risk classification, recommendation, and explainability.
 
 ```bash
-curl -s -X POST http://localhost:8000/predict \
+curl -sS \
+  -X POST \
+  "http://localhost:8000/predict?explain=true" \
   -H "Content-Type: application/json" \
   -d '{
-    "user_id": 1,
-    "days_since_last_order": 1,
-    "tenure_days": 600,
-    "total_orders": 80,
-    "std_days_between_orders": 2.5,
-    "orders_last_30_days": 10,
-    "avg_order_value": 45,
-    "avg_rating": 4.8,
-    "coupon_usage_count": 0,
-    "coupon_usage_rate": 0,
-    "n_plan_changes": 0,
-    "monthly_price": 99.99,
-    "subscription_tenure_days": 580,
-    "avg_app_logins": 15,
-    "avg_meals_skipped": 0,
-    "total_support_tickets": 0,
-    "age": 45,
-    "age_group_code": 2
-  }' | python -m json.tool
-```
-
-**Response:**
-```json
-{
-    "user_id": 1,
-    "churn_probability": 0.0526,
-    "risk_level": "Low",
-    "business_recommendation": "Low risk (P=5.26%). User is in good standing — no retention action needed. Strength: Long-term subscriber — recognize milestone with a reward."
-}
-```
-
----
-
-#### ⚠️ Scenario 2: Medium Risk — Disengaged User (Short History, Low Engagement)
-
-A relatively new user with short account history, declining engagement, poor ratings, and multiple support tickets.
-
-```bash
-curl -s -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "user_id": 2,
-    "days_since_last_order": 60,
-    "tenure_days": 75,
-    "total_orders": 5,
-    "std_days_between_orders": 15,
-    "orders_last_30_days": 0,
-    "avg_order_value": 28,
-    "avg_rating": 2.1,
-    "coupon_usage_count": 2,
-    "coupon_usage_rate": 0.4,
-    "n_plan_changes": 3,
-    "monthly_price": 29.99,
-    "subscription_tenure_days": 30,
-    "avg_app_logins": 0.5,
-    "avg_meals_skipped": 3,
-    "total_support_tickets": 8,
-    "age": 22,
-    "age_group_code": 0
-  }' | python -m json.tool
-```
-
-**Response** *(note: the recommendation includes SHAP-identified risk signals and targeted actions)*:
-```json
-{
-    "user_id": 2,
-    "churn_probability": 0.2269,
-    "risk_level": "Medium",
-    "business_recommendation": "At-risk (P=22.69%). Signals: Only 30 days subscribed — early churn risk window (impact: +0.608); Short account history of only 75 days — low loyalty (impact: +0.407).\n\nRecommended actions:\n  1. Strengthen onboarding with guided meal selection and tips\n  2. Welcome series: offer a discounted 4-week trial to build ordering habit"
-}
-```
-
----
-
-#### ⚠️ Scenario 3: Medium Risk — Brand New User (Critical Onboarding Window)
-
-A brand new user who signed up only 5 days ago but is already showing warning signs: multiple support tickets, skipped meals, and low app engagement. This captures churn risk during the critical early onboarding phase.
-
-```bash
-curl -s -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "user_id": 3,
-    "days_since_last_order": 10,
-    "tenure_days": 15,
-    "total_orders": 2,
-    "std_days_between_orders": 999,
-    "orders_last_30_days": 1,
-    "avg_order_value": 22,
-    "avg_rating": 2.5,
-    "coupon_usage_count": 1,
-    "coupon_usage_rate": 0.5,
+    "user_id": 101,
+    "days_since_last_order": 20,
+    "tenure_days": 365,
+    "total_orders": 42,
+    "std_days_between_orders": 4.2,
+    "orders_last_30_days": 2,
+    "avg_order_value": 32.5,
+    "avg_rating": 3.8,
+    "coupon_usage_count": 8,
+    "coupon_usage_rate": 0.19,
     "n_plan_changes": 1,
-    "monthly_price": 19.99,
-    "subscription_tenure_days": 5,
-    "avg_app_logins": 0.2,
-    "avg_meals_skipped": 5,
-    "total_support_tickets": 4,
-    "age": 20,
-    "age_group_code": 0
+    "monthly_price": 89.99,
+    "subscription_tenure_days": 300,
+    "avg_app_logins": 3.5,
+    "avg_meals_skipped": 1.2,
+    "total_support_tickets": 2,
+    "age": 29,
+    "age_group_code": 1
   }' | python -m json.tool
 ```
 
-**Response:**
+Verified example:
+
 ```json
 {
-    "user_id": 3,
-    "churn_probability": 0.2097,
-    "risk_level": "Medium",
-    "business_recommendation": "At-risk (P=20.97%). Signals: Only 5 days subscribed — early churn risk window (impact: +0.583); Short account history of only 15 days — low loyalty (impact: +0.352).\n\nRecommended actions:\n  1. Strengthen onboarding with guided meal selection and tips\n  2. Welcome series: offer a discounted 4-week trial to build ordering habit"
+  "user_id": 101,
+  "churn_probability": 0.0337,
+  "risk_level": "Low",
+  "business_recommendation": "Low risk. User is in good standing.",
+  "explanations": [
+    {
+      "feature": "avg_meals_skipped",
+      "value": 1.2,
+      "impact": -0.6561
+    }
+  ]
 }
 ```
 
+> The complete response contains up to five feature explanations. Exact values depend on the committed model artifacts.
+
 ---
 
-### 📊 With SHAP Explanations
+### Test Case 3 — Invalid business-rule input
 
-```http
-POST /predict?explain=true
-```
+**Purpose:** Confirm that Pydantic rejects logically inconsistent input.
 
-Add `?explain=true` to receive the **top 5 feature contributions** via SHAP for every prediction. Each explanation shows:
-
-- **feature**: The feature name
-- **value**: The actual feature value for this user
-- **impact**: Positive = increases churn risk, Negative = decreases churn risk
+This request is invalid because `orders_last_30_days` is greater than `total_orders`.
 
 ```bash
-curl -s -X POST 'http://localhost:8000/predict?explain=true' \
+curl -sS \
+  -X POST \
+  "http://localhost:8000/predict" \
   -H "Content-Type: application/json" \
   -d '{
-    "user_id": 2,
-    "days_since_last_order": 60,
-    "tenure_days": 75,
-    "total_orders": 5,
-    "std_days_between_orders": 15,
-    "orders_last_30_days": 0,
-    "avg_order_value": 28,
-    "avg_rating": 2.1,
-    "coupon_usage_count": 2,
-    "coupon_usage_rate": 0.4,
-    "n_plan_changes": 3,
-    "monthly_price": 29.99,
-    "subscription_tenure_days": 30,
-    "avg_app_logins": 0.5,
-    "avg_meals_skipped": 3,
-    "total_support_tickets": 8,
-    "age": 22,
-    "age_group_code": 0
-  }'
+    "user_id": 999,
+    "total_orders": 2,
+    "orders_last_30_days": 8,
+    "age": 30
+  }' | python -m json.tool
 ```
 
-**Response:**
-```json
-{
-    "user_id": 2,
-    "churn_probability": 0.2269,
-    "risk_level": "Medium",
-    "business_recommendation": "At-risk (P=22.69%). Signals: Only 30 days subscribed — early churn risk window (impact: +0.608); Short account history of only 75 days — low loyalty (impact: +0.407).\n\nRecommended actions:\n  1. Strengthen onboarding with guided meal selection and tips\n  2. Welcome series: offer a discounted 4-week trial to build ordering habit",
-    "explanations": [
-        {"feature": "subscription_tenure_days", "value": 30.0, "impact": 0.6084},
-        {"feature": "tenure_days", "value": 75.0, "impact": 0.4074},
-        {"feature": "total_support_tickets", "value": 8.0, "impact": 0.1142},
-        {"feature": "age", "value": 22.0, "impact": 0.0621},
-        {"feature": "avg_meals_skipped", "value": 3.0, "impact": -0.0447}
+Expected result:
+
+```text
+HTTP 422 Unprocessable Entity
+```
+
+The validation response explains:
+
+```text
+orders_last_30_days cannot exceed total_orders
+```
+
+---
+
+## 📦 Batch Prediction
+
+```bash
+curl -sS \
+  -X POST \
+  "http://localhost:8000/predict/batch" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "users": [
+      {
+        "user_id": 201,
+        "age": 29
+      },
+      {
+        "user_id": 202,
+        "age": 40
+      }
     ]
-}
+  }' | python -m json.tool
 ```
 
-> **💡 Key Insight**: `subscription_tenure_days` (+0.6084) is the strongest risk driver for this user — the model identifies that being only 30 days into the subscription is the #1 churn signal. The recommendation targets this with onboarding improvement.
-
-### Predict Churn (Batch)
-
-```http
-POST /predict/batch
-```
-
-Accepts up to **1,000 users** in a single request.
+Batch predictions are vectorized and skip SHAP computation to reduce latency.
 
 ---
 
-## 📸 Screenshots
+## 🐳 Docker Deployment
 
-Click the links below to view the screenshots captured from the running system:
-
-| Screenshot | Preview | Description |
-|---|---|---|
-| **Swagger API Documentation** | [📄 Click to View](./screenshots/Haett%20Churn%20Prediction%20API%20-%20Swagger%20UI.pdf) | All 4 API endpoints (GET /health, GET /, POST /predict, POST /predict/batch) |
-| **MLflow Experiment Runs** | [📄 Click to View](./screenshots/Runs%20-%20Experiment%201%20-%20MLflow.pdf) | All training runs with their metrics (F1, ROC-AUC, PR-AUC) |
-| **MLflow Model Comparison** | [📄 Click to View](./screenshots/Compare%20Runs%20-%20MLflow.pdf) | Side-by-side comparison of LR, RF, and XGBoost models |
-
-### How to Take Fresh Screenshots
-
-1. **Swagger UI**: Open [http://localhost:8000/docs](http://localhost:8000/docs) → Right-click → **Print** → **Save as PDF**
-2. **MLflow Runs**: Open [http://localhost:5000](http://localhost:5000) → Click experiment → Right-click → **Save as PDF**
-3. **Prediction Response**: In Swagger UI → `POST /predict` → **Try it out** → Paste user data → **Execute** → Screenshot the response
-
----
-
-## 🧪 Testing
+### Build the API image
 
 ```bash
-# Run all tests
-python -m pytest tests/ -v
-
-# Run specific test file
-python -m pytest tests/test_feature_engineering.py -v
-python -m pytest tests/test_api.py -v
+docker compose build api
 ```
 
-**Results: 45 passed, 0 failed, 0 skipped**
-
----
-
-## 🐳 Docker
-
-### Build & Run
+### Start the API
 
 ```bash
-# Build the image (pipeline runs inside during build)
-docker build -t haett-churn-api .
-
-# Run the API
-docker run -p 8000:8000 haett-churn-api
-
-# Or use docker-compose (includes MLflow)
-docker-compose up --build
+docker compose up -d api
 ```
 
-### Docker Compose Services
+### Wait for the container to become healthy
 
-| Service | Port | Description |
-|---|---|---|
-| `api` | 8000 | FastAPI prediction service |
-| `mlflow` | 5000 | MLflow tracking server |
+```bash
+until [ "$(docker inspect -f '{{.State.Health.Status}}' haett-churn-api 2>/dev/null)" = "healthy" ]; do
+  echo "Waiting for API startup..."
+  sleep 2
+done
+```
 
-### Dockerfile Features
-- **Multi-stage build** — builder stage trains model, runtime stage is minimal
-- **Non-root user** — runs as `appuser` for security
-- **HEALTHCHECK** — automatically checks `/health` every 30s
-- **Auto-training** — pipeline runs during build, no manual training needed
+### Verify the service
 
----
+```bash
+curl -sS http://localhost:8000/health | python -m json.tool
+```
 
-## 📈 MLOps Practices
+### Start API and MLflow together
 
-| Practice | Implementation |
-|---|---|
-| ✅ **Experiment Tracking** | MLflow logs params, metrics, artifacts per run |
-| ✅ **Model Versioning** | Each training run creates a new MLflow run |
-| ✅ **Reproducibility** | Fixed random seed (42), requirements.txt, Docker |
-| ✅ **Modular Code** | Separate modules: data, models, api, utils |
-| ✅ **API Documentation** | Auto-generated Swagger UI at /docs |
-| ✅ **Input Validation** | Pydantic schemas with field constraints |
-| ✅ **Containerization** | Multi-stage Docker + docker-compose |
-| ✅ **Target Leakage Prevention** | Removed is_sub_active and related features |
-| ✅ **Dynamic Risk Thresholds** | Uses model's optimal F1 threshold from training |
-| ✅ **SHAP-Driven Recommendations** | Business recommendations use SHAP feature importance |
-| ✅ **CI/CD (Bonus)** | GitHub Actions workflows for lint, test, deploy |
-| ✅ **SHAP Explainability (Bonus)** | Feature contributions per prediction |
-| ✅ **Data Drift Detection (Bonus)** | Evidently AI reference data monitoring |
-| ✅ **Cloud Deployment Guide (Bonus)** | DEPLOYMENT.md for GCP Cloud Run |
+```bash
+docker compose up -d
+```
 
----
+### Stop services
 
-## 📋 Submission Checklist
+```bash
+docker compose down
+```
 
-- [x] Complete source code in `src/`
-- [x] README with setup instructions (this file)
-- [x] Requirements file (`requirements.txt`)
-- [x] Docker configuration (`Dockerfile`, `docker-compose.yml`)
-- [x] MLflow experiment tracking (screenshots in `screenshots/`)
-- [x] Sample API requests (see [User Scenarios](#-user-scenarios))
-- [x] Design assumptions documented (synthetic data generation)
-- [x] Feature engineering matches assessment criteria (7 features)
-- [x] Target leakage verified and fixed
-- [x] SHAP-driven business recommendations with risk signals
-- [x] Dynamic risk thresholds using model's optimal threshold
-- [x] Pushed to GitHub: [https://github.com/VijayaKumarchinta/Haett_MLOps_Intern_Assessment_](https://github.com/VijayaKumarchinta/Haett_MLOps_Intern_Assessment_)
+### Docker design
+
+- Model training is not executed during image build.
+- The image packages the already-trained deployment artifacts.
+- The API runs as a non-root user.
+- A Docker health check verifies `/health`.
+- Docker Compose does not replace the packaged model directory with an empty bind mount.
 
 ---
 
-## 🔮 Future Improvements
+## ✅ Testing and Code Quality
 
-- [ ] Deploy to cloud (GCP Cloud Run, AWS ECS)
-- [ ] Real data ingestion (replace synthetic generator)
-- [ ] Real-time streaming predictions with Kafka
-- [ ] A/B testing framework for retention campaigns
-- [ ] Grafana monitoring dashboard
-- [ ] Automated retraining pipeline
-- [ ] Feature store (Feast)
+Run formatting, linting, and tests:
+
+```bash
+python -m black --check src tests
+python -m ruff check src tests
+python -m pytest tests -v
+```
+
+Current verified result:
+
+```text
+45 passed
+```
+
+### Test coverage areas
+
+- health and root endpoints
+- single-user prediction
+- SHAP response behavior
+- batch prediction
+- missing-model handling
+- input-range and business-rule validation
+- feature engineering
+- classification metrics
+- risk-level mapping
+- business recommendations
+- drift reference creation
+- drift report generation
 
 ---
 
-## 📝 License
+## 🔍 Explainability
 
-MIT © Vijaya Kumar Chinta
+SHAP explanations are generated:
+
+- when `POST /predict?explain=true` is requested
+- for selected High-Risk single-user predictions when explanation signals are needed for a targeted recommendation
+
+Batch prediction intentionally skips SHAP to keep latency low.
 
 ---
+
+## 📡 Drift Monitoring
+
+The project stores reference feature data and includes utilities for comparing future inference data against the training baseline.
+
+Monitoring implementation:
+
+```text
+src/monitoring/drift_detection.py
+```
+
+Generated monitoring reports are runtime artifacts and should not be treated as source code.
+
+---
+
+## 🎯 Assessment Coverage
+
+| Requirement | Status |
+|---|:---:|
+| Data preparation | ✅ |
+| Feature engineering | ✅ |
+| Multiple models | ✅ |
+| Model evaluation | ✅ |
+| MLflow experiment tracking | ✅ |
+| FastAPI deployment | ✅ |
+| Input validation | ✅ |
+| Business recommendations | ✅ |
+| Dockerized inference | ✅ |
+| Automated testing | ✅ |
+| GitHub Actions | ✅ |
+| SHAP explainability | ✅ |
+| Drift-monitoring utilities | ✅ |
+
+---
+
+## ⚠️ Assumptions and Limitations
+
+### Assumptions
+
+- Churn means no order or subscription renewal during the next 30 days.
+- The synthetic dataset represents realistic meal-subscription behavior.
+- Risk levels use the optimal threshold generated during training.
+- `user_id` is excluded from model input and used only in the API response.
+- Missing model features are aligned to the stored training schema.
+
+### Limitations
+
+- The dataset is synthetic and should be replaced or supplemented with production data.
+- Drift monitoring currently runs as an offline utility.
+- Production authentication, rate limiting, and persistent prediction logging are outside the assessment scope.
+- MLflow Model Registry promotion can be added as a future enhancement.
+- Final model-selection methodology can be improved with stricter validation/test separation.
+
+---
+
+## 🛣 Roadmap
+
+- [ ] Register and promote the final model through MLflow Model Registry
+- [ ] Add scheduled drift checks and alerting
+- [ ] Add cloud deployment
+- [ ] Add centralized logs and prediction monitoring
+- [ ] Add authentication and rate limiting
+- [ ] Track retention interventions and outcomes
+- [ ] Add automated retraining triggers
+
+---
+
+## 👨‍💻 Author
 
 <div align="center">
-  <sub>Built for the <strong>Haett MLOps Intern Assessment</strong></sub>
+
+**Vijaya Kumar Chinta**
+
+[![GitHub](https://img.shields.io/badge/GitHub-VijayaKumarchinta-181717?logo=github)](https://github.com/VijayaKumarchinta)
+
+Built as part of the **Haett MLOps Internship Assessment**.
+
 </div>
