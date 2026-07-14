@@ -1,6 +1,0 @@
-{
-  "timestamp": "20260714_204632",
-  "n_samples": 5000,
-  "n_features": 30,
-  "model_name": "xgb_classifier"
-}
