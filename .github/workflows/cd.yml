@@ -155,7 +155,7 @@ jobs:
               "avg_rating": 4.2,
               "total_support_tickets": 1,
               "age": 32,
-              "is_sub_active": true,
+              "avg_order_value": 33.33,
               "subscription_tenure_days": 180,
               "tenure_days": 200
             }' 2>&1)

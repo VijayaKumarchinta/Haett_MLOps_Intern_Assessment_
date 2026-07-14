@@ -180,7 +180,7 @@ POST /predict
   "avg_rating": 4.5,
   "total_support_tickets": 0,
   "age": 28,
-  "is_sub_active": true,
+  "subscription_tenure_days": 200,
   "subscription_tenure_days": 200,
   "tenure_days": 210
 }
