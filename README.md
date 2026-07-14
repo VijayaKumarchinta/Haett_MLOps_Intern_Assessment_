@@ -2,28 +2,29 @@
 
 # 🥗 Haett Churn Prediction — MLOps Assessment
 
-### End-to-end churn prediction for a subscription-based healthy meal delivery platform
+### End-to-end customer churn prediction for a healthy meal subscription platform
 
 [![CI](https://github.com/VijayaKumarchinta/Haett_MLOps_Intern_Assessment_/actions/workflows/ci.yml/badge.svg)](https://github.com/VijayaKumarchinta/Haett_MLOps_Intern_Assessment_/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![MLflow](https://img.shields.io/badge/MLflow-Experiment%20Tracking-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org/)
-[![Docker](https://img.shields.io/badge/Docker-Inference%20Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-[![scikit-learn](https://img.shields.io/badge/scikit--learn-Logistic%20Regression-F7931E?logo=scikitlearn&logoColor=white)](https://scikit-learn.org/)
-[![Tests](https://img.shields.io/badge/Tests-50%20Passed-2EA44F?logo=pytest&logoColor=white)](#-testing)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Inference-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![MLflow](https://img.shields.io/badge/MLflow-Registry%20%2B%20Tracking-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org/)
+[![Feast](https://img.shields.io/badge/Feast-Feature%20Store-5B2C6F)](https://feast.dev/)
+[![Airflow](https://img.shields.io/badge/Airflow-Orchestration-017CEE?logo=apacheairflow&logoColor=white)](https://airflow.apache.org/)
+[![Docker](https://img.shields.io/badge/Docker-Local%20Inference-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Tests](https://img.shields.io/badge/Tests-50%20Cases-2EA44F?logo=pytest&logoColor=white)](#-testing-and-quality)
+[![Prometheus](https://img.shields.io/badge/Prometheus-Metrics-E6522C?logo=prometheus&logoColor=white)](https://prometheus.io/)
 [![SHAP](https://img.shields.io/badge/Explainability-SHAP-8A2BE2)](https://shap.readthedocs.io/)
-[![Assessment](https://img.shields.io/badge/Assessment-Haett%20MLOps-FF6B35)](#-assessment-requirement-mapping)
 
 <br>
 
-**Data Preparation · Feature Engineering · Model Training · MLflow · FastAPI · Docker · Testing · Monitoring**
+**Data Preparation · Feature Engineering · Model Training · MLflow Registry · FastAPI · Feast · Airflow · Monitoring**
 
 [Objective](#-objective) •
 [Requirements](#-assessment-requirement-mapping) •
 [Architecture](#-architecture) •
-[Setup](#-setup) •
+[Setup](#-local-setup) •
 [API Tests](#-three-api-test-cases) •
-[Docker](#-docker-deployment)
+[MLOps](#-additional-mlops-capabilities)
 
 </div>
 
@@ -31,45 +32,46 @@
 
 ## 🎯 Objective
 
-Haett is a subscription-based healthy meal delivery platform. The goal of this assessment is to build an end-to-end machine learning system that predicts whether an **active user is likely to churn within the next 30 days**.
+Haett is a subscription-based healthy meal delivery platform. This project predicts whether an **active customer is likely to churn within the next 30 days**.
 
 A user is considered churned when they:
 
 - stop ordering meals during the prediction window, or
-- do not renew their subscription during that period.
+- fail to renew their subscription during that period.
 
-The deployed API returns:
+The prediction API returns:
 
-```json
-{
-  "churn_probability": 0.87,
-  "risk_level": "High"
-}
-```
-
-This implementation also returns an actionable retention recommendation and can optionally include SHAP feature explanations.
+- churn probability
+- `Low`, `Medium`, or `High` risk
+- a risk-based retention recommendation
+- optional SHAP feature explanations
 
 ---
 
 ## ✅ Assessment Requirement Mapping
 
-The README is organized around the six mandatory sections in the assessment.
-
 | Assessment requirement | Implementation | Status |
 |---|---|:---:|
-| 1. Data preparation | Synthetic historical user, order, subscription, and engagement data | ✅ |
-| 2. Feature engineering | Recency, frequency, monetary, subscription, coupon, meal-swap, and consistency features | ✅ |
-| 3. Model training | Logistic Regression, Random Forest, and XGBoost with classification metrics | ✅ |
-| 4. MLflow tracking | Parameters, metrics, plots, and model artifacts logged | ✅ |
-| Registered best model | MLflow Model Registry version with `champion` alias | ✅ |
-| 5. FastAPI prediction API | `POST /predict`, validation, health endpoint, and batch prediction | ✅ |
-| 6. Business recommendation | High-risk users receive a retention action based on risk signals | ✅ |
-| Dockerized application | Lightweight inference image with health check | ✅ |
-| Modular code | Separate data, model, API, monitoring, and utility modules | ✅ |
-| Basic testing | 50 automated tests | ✅ |
-| Clear documentation | Setup, design decisions, requests, responses, and limitations | ✅ |
+| Data preparation | Synthetic user, order, subscription, engagement, coupon, and support data | ✅ |
+| Feature engineering | 30 model features covering recency, frequency, monetary, subscription, engagement, and demographics | ✅ |
+| Multiple models | Logistic Regression, Random Forest, and XGBoost | ✅ |
+| Classification metrics | Precision, recall, F1, ROC-AUC, PR-AUC, balanced accuracy, Brier score, and lift | ✅ |
+| MLflow experiment tracking | Parameters, metrics, thresholds, plots, and model artifacts | ✅ |
+| Registered best model | `haett_churn_model` registered with a `champion` alias | ✅ |
+| FastAPI prediction API | Single and batch prediction endpoints | ✅ |
+| Input validation | Pydantic field validation and cross-field business rules | ✅ |
+| Business recommendation | Risk and SHAP-driven retention actions | ✅ |
+| Modular project structure | Separate data, model, API, monitoring, feature-store, and orchestration modules | ✅ |
+| Automated testing | 50 test cases across API, features, metrics, drift, and MLOps configuration | ✅ |
+| CI workflow | GitHub Actions lint, test, pipeline-smoke, and Docker jobs | ✅ |
+| Explainability | SHAP explanations for supported single predictions | ✅ |
+| Drift monitoring | Reference datasets, drift reports, and severity classification | ✅ |
+| Feature store | Local Feast repository using Parquet and SQLite | ✅ |
+| Workflow orchestration | Airflow DAG for the non-cloud MLOps workflow | ✅ |
+| API metrics | Prometheus-compatible `/metrics` endpoint and alert rules | ✅ |
+| Cloud deployment | Intentionally excluded | — |
 
-> **Transparent limitation:** the assessment asks for a registered best model. The selected model is registered in MLflow Model Registry and promoted using the `champion` alias.
+> Cloud deployment and automated production CD are outside the selected scope. Docker is used for reproducible local inference.
 
 ---
 
@@ -77,56 +79,70 @@ The README is organized around the six mandatory sections in the assessment.
 
 ```mermaid
 flowchart LR
-    A[Historical User Activity] --> B[Data Preparation]
+    A[User, Order and Subscription Data] --> B[Data Preparation]
     B --> C[Feature Engineering]
-    C --> D[Train / Validation / Test Data]
+    C --> D[Train / Validation / Test]
     D --> E[Logistic Regression]
     D --> F[Random Forest]
     D --> G[XGBoost]
+
     E --> H[Model Evaluation]
     F --> H
     G --> H
-    E --> I[MLflow]
+
+    E --> I[MLflow Tracking]
     F --> I
     G --> I
-    H --> J[Selected Model Artifacts]
-    J --> K[FastAPI]
-    K --> L[Churn Probability]
-    K --> M[Low / Medium / High Risk]
-    K --> N[Retention Recommendation]
-    K --> O[Optional SHAP Explanation]
-    C --> P[Drift Reference Data]
+
+    H --> J[Selected Model]
+    J --> K[MLflow Model Registry]
+    K --> L[Champion Alias]
+
+    J --> M[FastAPI]
+    M --> N[Churn Probability]
+    M --> O[Risk Level]
+    M --> P[Retention Recommendation]
+    M --> Q[Optional SHAP Explanation]
+    M --> R[Prometheus Metrics]
+
+    C --> S[Feast Feature Store]
+    C --> T[Drift Reference Data]
+
+    U[Airflow DAG] --> A
+    U --> B
+    U --> C
+    U --> H
+    U --> K
+    U --> S
 ```
 
-### Training and inference separation
+### Workflow separation
 
 | Workflow | Responsibility |
 |---|---|
-| Training pipeline | Generate data, preprocess, engineer features, train models, evaluate, and save artifacts |
-| MLflow | Store experiment parameters, metrics, plots, and serialized model artifacts |
-| Inference API | Load existing artifacts and serve predictions |
-| Docker image | Package only the API, runtime dependencies, and pre-trained artifacts |
-| Monitoring | Compare new feature data with a saved reference distribution |
-
-The Docker image **does not retrain the models during build**.
+| Training | Generate data, preprocess, engineer features, train candidates, evaluate, and save artifacts |
+| Tracking and registry | Record experiments, create model versions, and assign the `champion` alias |
+| Feature store | Store model features in a local Feast repository |
+| Inference | Load committed artifacts and expose prediction endpoints |
+| Monitoring | Expose API metrics and compare new feature data with a reference distribution |
+| Orchestration | Coordinate non-cloud MLOps tasks using Airflow |
+| Docker | Package the API and pre-trained artifacts without retraining during build |
 
 ---
 
 # 1️⃣ Data Preparation
 
-## Dataset strategy
+The project uses synthetic historical data because private Haett production data was not provided.
 
-The project uses realistic synthetic data representing:
+Generated data represents:
 
-- user profiles
+- customer profiles
 - meal orders
 - subscription history
 - app engagement
 - support activity
-- coupon behavior
+- coupon usage
 - meal skipping or swapping behavior
-
-The generated data is intended to approximate a subscription meal-delivery business when private production data is unavailable.
 
 ## Pipeline stages
 
@@ -135,56 +151,41 @@ The generated data is intended to approximate a subscription meal-delivery busin
 | Generate data | `src/data/generate_data.py` | `data/raw/` |
 | Clean and validate | `src/data/preprocess.py` | `data/processed/` |
 | Build features | `src/data/feature_engineering.py` | `data/features/` |
-| Train and evaluate | `src/models/train.py` | `models/`, `mlruns/` |
-| Orchestrate pipeline | `src/run_pipeline.py` | Complete pipeline execution |
-
-## Data assumptions
-
-- The prediction horizon is 30 days.
-- Users are active at the feature snapshot date.
-- The churn target is generated from future behavior, not from features available after churn.
-- Missing or optional inference features are aligned to the trained schema.
-- Synthetic data is used only because production Haett data was not provided.
+| Train and evaluate | `src/models/train.py` | `models/`, MLflow runs |
+| Run complete workflow | `src/run_pipeline.py` | End-to-end pipeline |
 
 ## Leakage prevention
 
-Fields that directly reveal cancellation or post-churn behavior are excluded, including:
-
-- cancellation indicators
-- cancellation reasons
-- days since cancellation
-- other fields that become known only after the target event
+The training matrix excludes fields that directly reveal churn or become available only after churn, including cancellation indicators and cancellation reasons.
 
 ---
 
 # 2️⃣ Feature Engineering
 
-The assessment recommends seven core behavior signals. All seven are represented.
+The final training matrix contains **30 features**.
 
-| Required example | Implemented feature |
+| Assessment example | Implemented feature |
 |---|---|
 | Days since last order | `days_since_last_order` |
-| Orders in last 30 days | `orders_last_30_days` |
+| Orders in the last 30 days | `orders_last_30_days` |
 | Average order value | `avg_order_value` |
 | Subscription duration | `subscription_tenure_days` |
 | Coupon usage | `coupon_usage_count`, `coupon_usage_rate` |
-| Meal swap frequency | `avg_meals_skipped` |
+| Meal skipping or swapping | `avg_meals_skipped` |
 | Order consistency | `std_days_between_orders` |
 
-## Feature groups
+Additional feature groups include:
 
-| Group | Examples |
-|---|---|
-| Recency | `days_since_last_order`, `tenure_days` |
-| Frequency | `total_orders`, `orders_last_30_days` |
-| Consistency | `std_days_between_orders` |
-| Monetary | `avg_order_value`, `avg_rating` |
-| Coupon behavior | `coupon_usage_count`, `coupon_usage_rate` |
-| Subscription | `subscription_tenure_days`, `monthly_price`, `n_plan_changes` |
-| Engagement | `avg_app_logins`, `avg_meals_skipped`, `total_support_tickets` |
-| Demographic and acquisition | `age`, `age_group_code`, encoded categorical fields |
-
-The final training matrix contains **30 features**, including encoded categorical variables.
+- customer tenure
+- total orders
+- ratings
+- monthly subscription price
+- plan changes
+- app logins
+- support tickets
+- age group
+- diet preference
+- referral source
 
 ---
 
@@ -192,26 +193,23 @@ The final training matrix contains **30 features**, including encoded categorica
 
 ## Candidate models
 
-The pipeline trains and compares:
-
 1. Logistic Regression
 2. Random Forest
 3. XGBoost
 
 ## Evaluation metrics
 
-Because churn is an imbalanced classification problem, the project reports:
-
+- Accuracy
+- Balanced accuracy
 - Precision
 - Recall
 - F1 score
 - ROC-AUC
 - PR-AUC
-- Balanced accuracy
 - Brier score
 - Lift at 10%
 - Lift at 20%
-- Optimal classification threshold
+- Optimal probability threshold
 
 ## Final selected model
 
@@ -230,7 +228,7 @@ Because churn is an imbalanced classification problem, the project reports:
 | Lift at 20% | 2.3256 |
 | Optimal threshold | 0.1518 |
 
-> These values correspond to the committed deployment artifacts. Regenerating the synthetic dataset or retraining may produce slightly different results.
+These values correspond to the committed deployment metadata. Retraining synthetic data may produce slightly different results.
 
 ## Saved artifacts
 
@@ -246,54 +244,89 @@ models/
 
 ---
 
-# 4️⃣ MLflow Experiment Tracking
+# 4️⃣ MLflow Tracking and Model Registry
 
-MLflow is used to track:
+MLflow is used to record:
 
-- model name
+- candidate model names
 - hyperparameters
 - evaluation metrics
 - optimal threshold
-- feature-importance artifacts
 - serialized model artifacts
-- comparison across candidate models
+- model comparison results
 
-Start the MLflow interface:
+The selected model can be registered using:
 
 ```bash
-mlflow ui \
-  --backend-store-uri mlruns \
+export MLFLOW_TRACKING_URI="sqlite:///$PWD/mlflow.db"
+python scripts/register_best_model.py
+```
+
+The registration script:
+
+1. logs the committed best model
+2. creates a registered model named `haett_churn_model`
+3. creates a model version
+4. assigns the `champion` alias
+5. writes registry metadata locally
+
+Verify the registry:
+
+```bash
+python - <<'PY'
+import os
+from mlflow import MlflowClient
+
+uri = f"sqlite:///{os.getcwd()}/mlflow.db"
+client = MlflowClient(tracking_uri=uri)
+
+champion = client.get_model_version_by_alias(
+    "haett_churn_model",
+    "champion",
+)
+
+print("Version:", champion.version)
+print("Run ID:", champion.run_id)
+print("Source:", champion.source)
+PY
+```
+
+Start the MLflow server:
+
+```bash
+mlflow server \
+  --backend-store-uri "sqlite:///$PWD/mlflow.db" \
+  --default-artifact-root "$PWD/mlartifacts" \
   --host 0.0.0.0 \
   --port 5000
 ```
 
-Open:
-
-```text
-http://localhost:5000
-```
-
-## Model versioning status
-
-The selected artifact is stored in `models/` and packaged into the inference image.
-
-MLflow Model Registry registration and `champion` alias promotion are implemented through `scripts/register_best_model.py`. This is listed under [Future Improvements](#-future-improvements), in line with the assessment instruction to clearly document incomplete items.
+Open `http://localhost:5000`.
 
 ---
 
 # 5️⃣ Prediction API
 
-The FastAPI service validates input, aligns features to the trained schema, loads the model once during application startup, and handles unavailable artifacts with appropriate service errors.
+The FastAPI service:
+
+- loads the predictor during application startup
+- validates numeric ranges and business consistency
+- aligns request fields to the trained feature schema
+- supports single and batch predictions
+- returns graceful errors when model artifacts are unavailable
+- optionally returns SHAP explanations
+- exposes Prometheus-compatible metrics
 
 ## Endpoints
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| `GET` | `/` | API metadata and links |
+| `GET` | `/` | API metadata |
 | `GET` | `/health` | Service and model health |
+| `GET` | `/metrics` | Prometheus-compatible metrics |
 | `POST` | `/predict` | Single-user prediction |
-| `POST` | `/predict?explain=true` | Prediction with SHAP explanations |
-| `POST` | `/predict/batch` | Batch prediction for up to 1,000 users |
+| `POST` | `/predict?explain=true` | Prediction with SHAP |
+| `POST` | `/predict/batch` | Vectorized batch prediction |
 | `GET` | `/docs` | Swagger UI |
 
 ## Response structure
@@ -308,48 +341,37 @@ The FastAPI service validates input, aligns features to the trained schema, load
 }
 ```
 
-## Input validation
+## Validation examples
 
-Pydantic validation covers:
+The API rejects:
 
-- non-negative numerical fields
-- age range
-- rating range
-- coupon usage rate range
-- valid age-group code
-- `orders_last_30_days <= total_orders`
-- `coupon_usage_count <= total_orders`
-- `subscription_tenure_days <= tenure_days`
-- `days_since_last_order <= tenure_days` when tenure is positive
-- rejection of unknown request fields
+- negative counts and monetary values
+- invalid ratings and probability rates
+- unsupported age-group codes
+- `orders_last_30_days > total_orders`
+- `coupon_usage_count > total_orders`
+- `subscription_tenure_days > tenure_days`
+- `days_since_last_order > tenure_days` when tenure is positive
+- unknown request fields
 
-Invalid requests return a structured HTTP `422` response.
+Invalid requests return HTTP `422`.
 
 ---
 
-# 6️⃣ Business Recommendation
+# 6️⃣ Business Recommendations
 
-Prediction alone is not treated as the final output.
+Risk levels are converted into actionable retention strategies.
 
-The recommendation layer uses:
-
-- churn probability
-- Low, Medium, or High risk
-- optimal threshold
-- available SHAP risk signals
-
-Examples of retention actions include:
-
-| User condition | Example action |
+| Risk signal | Example recommendation |
 |---|---|
 | High price sensitivity | Offer a targeted discount |
-| Poor meal fit or high skipping | Recommend alternative meals |
-| Early subscription churn risk | Improve onboarding and offer a short trial extension |
-| Plan mismatch | Suggest a more suitable subscription plan |
-| Low app engagement | Send a personalized notification |
+| Frequent meal skipping | Recommend alternative meals |
+| Early subscription risk | Improve onboarding or extend a trial |
+| Plan mismatch | Suggest a more appropriate plan |
+| Low application engagement | Send a personalized engagement message |
 | Repeated support issues | Trigger proactive customer-support outreach |
 
-High-risk users receive the strongest retention action. Low-risk users generally receive no urgent intervention.
+High-risk customers receive the strongest intervention. Low-risk customers generally require no urgent action.
 
 ---
 
@@ -357,60 +379,47 @@ High-risk users receive the strongest retention action. Low-risk users generally
 
 ```text
 .
-├── .github/
-│   └── workflows/
-│       └── ci.yml
-├── data/
-│   ├── raw/
-│   ├── processed/
-│   └── features/
-├── models/
-├── monitoring/
-│   └── reference/
-├── screenshots/
-├── scripts/
+├── .github/workflows/             # CI workflow
+├── airflow/dags/                  # Airflow orchestration
+├── data/                          # Generated datasets
+├── feature_repo/                  # Feast repository and definitions
+├── models/                        # Inference artifacts
+├── monitoring/                    # Drift data and Prometheus rules
+├── screenshots/                   # Assessment evidence
+├── scripts/                       # Registry, Feast, drift, and analysis utilities
 ├── src/
-│   ├── api/
-│   ├── data/
-│   ├── models/
-│   ├── monitoring/
-│   ├── utils/
-│   └── run_pipeline.py
-├── tests/
+│   ├── api/                       # FastAPI application
+│   ├── data/                      # Data generation and preprocessing
+│   ├── models/                    # Training and prediction
+│   ├── monitoring/                # Drift detection
+│   └── utils/                     # Configuration and metrics
+├── tests/                         # Automated tests
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
 ├── requirements-api.txt
 ├── requirements-dev.txt
+├── requirements-airflow.txt
 └── README.md
 ```
 
 ---
 
-## ⚡ Setup
+## ⚡ Local Setup
 
 ### Prerequisites
 
 - Python 3.11+
 - pip
-- Docker and Docker Compose for containerized execution
+- Docker and Docker Compose for containerized local inference
 
-### Clone
+### Clone and create an environment
 
 ```bash
 git clone https://github.com/VijayaKumarchinta/Haett_MLOps_Intern_Assessment_.git
 cd Haett_MLOps_Intern_Assessment_
-```
 
-### Create a virtual environment
-
-```bash
 python -m venv .venv
-```
-
-Linux or macOS:
-
-```bash
 source .venv/bin/activate
 ```
 
@@ -420,43 +429,27 @@ Windows PowerShell:
 .venv\Scripts\Activate.ps1
 ```
 
-### Install dependencies
-
-For training, tests, and local development:
+Install development dependencies:
 
 ```bash
 python -m pip install --upgrade pip
 python -m pip install -r requirements-dev.txt
 ```
 
-For inference-only environments:
-
-```bash
-python -m pip install -r requirements-api.txt
-```
-
 ---
 
-## ▶️ Run the Pipeline
+## ▶️ Run the Training Pipeline
 
 ```bash
+export MLFLOW_TRACKING_URI="sqlite:///$PWD/mlflow.db"
 python src/run_pipeline.py
 ```
 
-The command:
-
-1. generates synthetic historical behavior
-2. preprocesses the source tables
-3. builds the feature matrix
-4. trains candidate models
-5. evaluates each model
-6. logs experiments to MLflow
-7. saves the selected deployment artifacts
-8. saves reference data for drift monitoring
+The pipeline generates data, builds features, trains candidate models, evaluates performance, logs MLflow experiments, saves artifacts, and creates drift reference data.
 
 ---
 
-## 🚀 Run the API Locally
+## 🚀 Run the API
 
 ```bash
 python -m uvicorn src.api.main:app \
@@ -469,15 +462,30 @@ Open:
 ```text
 Swagger UI: http://localhost:8000/docs
 Health:     http://localhost:8000/health
+Metrics:    http://localhost:8000/metrics
 ```
 
 ---
 
 ## 🧪 Three API Test Cases
 
-These tests map directly to the expected assessment behavior: a churn probability, a risk classification, a recommendation for an at-risk user, and graceful validation of invalid input.
+### Test Case 1 — Health check
 
-### Test Case 1 — Low-risk active customer
+```bash
+curl -sS http://localhost:8000/health | python -m json.tool
+```
+
+Expected structure:
+
+```json
+{
+  "status": "healthy",
+  "model_loaded": true,
+  "version": "1.0.0"
+}
+```
+
+### Test Case 2 — Prediction with SHAP explanation
 
 ```bash
 curl -sS \
@@ -506,7 +514,7 @@ curl -sS \
   }' | python -m json.tool
 ```
 
-Verified output from the committed model:
+Verified example structure:
 
 ```json
 {
@@ -524,74 +532,14 @@ Verified output from the committed model:
 }
 ```
 
-The real response may contain up to five explanation entries and a longer recommendation.
+Exact explanation values depend on the committed model artifacts.
 
----
+### Test Case 3 — Invalid business-rule input
 
-### Test Case 2 — At-risk customer requiring retention action
-
-```bash
-curl -sS \
-  -X POST \
-  "http://localhost:8000/predict?explain=true" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "user_id": 202,
-    "days_since_last_order": 120,
-    "tenure_days": 180,
-    "total_orders": 8,
-    "std_days_between_orders": 20,
-    "orders_last_30_days": 0,
-    "avg_order_value": 20,
-    "avg_rating": 1.5,
-    "coupon_usage_count": 6,
-    "coupon_usage_rate": 0.75,
-    "n_plan_changes": 4,
-    "monthly_price": 129.99,
-    "subscription_tenure_days": 60,
-    "avg_app_logins": 0.1,
-    "avg_meals_skipped": 6,
-    "total_support_tickets": 10,
-    "age": 24,
-    "age_group_code": 0
-  }' | python -m json.tool
-```
-
-Expected behavior:
-
-- an elevated churn probability
-- a `Medium` or `High` risk classification based on the trained threshold
-- a targeted retention recommendation
-- SHAP explanations because `explain=true`
-
-Example response structure:
-
-```json
-{
-  "user_id": 202,
-  "churn_probability": 0.78,
-  "risk_level": "High",
-  "business_recommendation": "Offer a targeted retention action based on the strongest risk signals.",
-  "explanations": [
-    {
-      "feature": "days_since_last_order",
-      "value": 120,
-      "impact": 0.42
-    }
-  ]
-}
-```
-
-> The probability and SHAP values shown above illustrate the expected structure. The actual values are generated by the committed model.
-
----
-
-### Test Case 3 — Invalid request handled gracefully
-
-This request is invalid because the number of orders in the last 30 days exceeds total lifetime orders.
+This request is invalid because recent orders exceed lifetime orders.
 
 ```bash
-curl -sS \
+curl -i \
   -X POST \
   "http://localhost:8000/predict" \
   -H "Content-Type: application/json" \
@@ -600,66 +548,31 @@ curl -sS \
     "total_orders": 2,
     "orders_last_30_days": 8,
     "age": 30
-  }' | python -m json.tool
+  }'
 ```
 
 Expected result:
 
 ```text
-HTTP 422 Unprocessable Entity
-```
-
-The response identifies the violated rule:
-
-```text
-orders_last_30_days cannot exceed total_orders
+HTTP/1.1 422 Unprocessable Entity
 ```
 
 ---
 
-## 🐳 Docker Deployment
+## 🧱 Local Docker Inference
 
-Build the lightweight inference image:
+Build and start the API:
 
 ```bash
 docker compose build api
-```
-
-Start the API:
-
-```bash
 docker compose up -d api
 ```
 
-Wait for readiness:
+Check status:
 
 ```bash
-until [ "$(docker inspect -f '{{.State.Health.Status}}' haett-churn-api 2>/dev/null)" = "healthy" ]; do
-  echo "Waiting for API startup..."
-  sleep 2
-done
-```
-
-Verify:
-
-```bash
+docker compose ps
 curl -sS http://localhost:8000/health | python -m json.tool
-```
-
-Expected:
-
-```json
-{
-  "status": "healthy",
-  "model_loaded": true,
-  "version": "1.0.0"
-}
-```
-
-Start both API and MLflow:
-
-```bash
-docker compose up -d
 ```
 
 Stop services:
@@ -668,174 +581,176 @@ Stop services:
 docker compose down
 ```
 
+The Docker build packages pre-trained model artifacts and does not retrain the model.
+
 ---
 
-## ✅ Testing
+## 🧰 Additional MLOps Capabilities
 
-Run formatting, linting, and tests:
+### Feast feature store
+
+The local Feast configuration uses:
+
+- Parquet offline features
+- SQLite online storage
+- `user_id` as the entity key
+- a feature service for churn features
+
+Prepare and apply:
 
 ```bash
-python -m black --check src tests
-python -m ruff check src tests
+python scripts/prepare_feast.py
+
+cd feature_repo
+feast apply
+feast materialize-incremental "$(date -u +%Y-%m-%dT%H:%M:%S)"
+cd ..
+```
+
+Test online retrieval:
+
+```bash
+python scripts/test_feast_store.py
+```
+
+### Airflow orchestration
+
+The DAG is located at:
+
+```text
+airflow/dags/haett_mlops_pipeline.py
+```
+
+It coordinates:
+
+1. data generation
+2. preprocessing
+3. feature engineering
+4. model training
+5. MLflow registration
+6. Feast update
+7. automated tests
+
+Airflow is installed separately using `requirements-airflow.txt`.
+
+### Prometheus monitoring
+
+The API exposes metrics at:
+
+```text
+http://localhost:8000/metrics
+```
+
+Alert rules are defined in:
+
+```text
+monitoring/prometheus_rules.yml
+```
+
+Configured alerts cover:
+
+- API unavailability
+- high HTTP 5xx error rate
+- high p95 latency
+
+### Drift monitoring
+
+The drift module supports:
+
+- reference dataset creation
+- current-versus-reference comparison
+- JSON report generation
+- drift severity classification
+- report listing
+
+---
+
+## ✅ Testing and Quality
+
+The repository contains **50 automated test cases** covering:
+
+- API health and metadata
+- single and batch prediction
+- optional SHAP output
+- input validation
+- missing-model behavior
+- Prometheus metrics
+- feature engineering
+- model metrics and thresholds
+- business recommendations
+- drift reference creation
+- drift reports
+- Feast configuration
+- Airflow DAG presence
+- Prometheus alert-rule presence
+
+Run the complete quality checks:
+
+```bash
+python -m black --check src tests scripts
+python -m ruff check src tests scripts
 python -m pytest tests -v
 ```
 
-Verified result:
-
-```text
-45 passed
-```
-
-The tests cover:
-
-- health and root endpoints
-- single prediction
-- optional SHAP response
-- batch prediction
-- missing-model behavior
-- field and cross-field validation
-- feature engineering
-- evaluation metrics
-- risk classification
-- business recommendations
-- drift reference creation
-- drift report generation
+> The CI badge reflects the latest GitHub Actions result. The README does not independently claim a green run.
 
 ---
 
-## 🔍 Explainability
+## ⚠️ Assumptions and Limitations
 
-SHAP explanations are generated:
+### Assumptions
 
-- when `POST /predict?explain=true` is called
-- when selected high-risk single predictions need supporting risk signals
+1. Churn means no order or subscription renewal during the next 30 days.
+2. Synthetic data approximates realistic meal-subscription behavior.
+3. The stored optimal threshold determines risk classification.
+4. `user_id` is returned for traceability but excluded from model features.
+5. Batch inference skips SHAP to reduce latency.
 
-Batch inference skips SHAP to keep latency manageable.
+### Limitations
 
----
-
-## 📡 Drift Monitoring
-
-Reference feature data is saved for comparison with future inference data.
-
-Implementation:
-
-```text
-src/monitoring/drift_detection.py
-```
-
-The monitoring utilities support:
-
-- saving reference datasets
-- comparing new data against the reference
-- generating drift reports
-- identifying critical feature drift
-
-This is implemented as an offline monitoring utility rather than a continuously scheduled production service.
-
----
-
-## 🧰 Software Engineering and MLOps Practices
-
-| Practice | Implementation |
-|---|---|
-| Reproducible setup | Separate training, development, and inference requirements |
-| Modular architecture | Data, models, API, monitoring, and utilities separated |
-| Input validation | Pydantic schemas and business-rule validators |
-| Model loading | Singleton predictor loaded during API startup |
-| Container security | Non-root Docker user |
-| Health monitoring | Docker and API health checks |
-| CI | GitHub Actions workflow |
-| Testing | 50 automated tests |
-| Explainability | SHAP |
-| Drift detection | Reference-based monitoring |
-| Documentation | Setup, design decisions, limitations, and examples |
-
----
-
-## 🎁 Bonus Features
-
-| Optional assessment item | Status |
-|---|:---:|
-| GitHub Actions CI/CD | ✅ |
-| Data drift detection | ✅ |
-| Monitoring and logging foundation | ✅ |
-| SHAP explainability | ✅ |
-| Feature Store with Feast | ✅ Implemented locally |
-| Airflow orchestration | ✅ Implemented locally |
-| Cloud deployment | Not included |
-
-The optional items not included were intentionally excluded to prioritize clean architecture, reproducibility, and a working deployment.
-
----
-
-## ⚠️ Assumptions and Design Decisions
-
-1. **Synthetic data:** used because private Haett production data was not supplied.
-2. **Thirty-day target:** represents whether a user stops ordering or fails to renew during the next 30 days.
-3. **Imbalanced metrics:** PR-AUC, recall, F1, and lift are emphasized over accuracy alone.
-4. **Optimal threshold:** risk classification uses the threshold saved during training.
-5. **User ID exclusion:** `user_id` is returned by the API but is not used as a model feature.
-6. **Pre-trained Docker artifact:** model training is separated from API image creation to reduce build time and improve deployment consistency.
-7. **Batch performance:** SHAP is skipped during batch scoring.
-8. **Graceful failure:** missing model artifacts result in a service-unavailable response.
-9. **Model Registry:** the selected model is registered and assigned the `champion` alias.
-
----
-
-## 🚧 Known Limitations
-
-- Synthetic data cannot fully represent real Haett customer behavior.
-- The final model should be revalidated on production data.
-- MLflow Model Registry registration, model version creation, and champion alias promotion are implemented through `scripts/register_best_model.py`.
-- Drift checks are offline rather than scheduled continuously.
-- Production authentication, rate limiting, centralized logs, and prediction auditing are outside the assessment scope.
-- Model-selection methodology can be strengthened further with stricter validation and untouched final-test evaluation.
+- Synthetic data cannot fully represent production customer behavior.
+- The final model should be revalidated on real Haett data.
+- Drift monitoring is offline rather than continuously scheduled.
+- Airflow and Feast are configured for local assessment use.
+- Authentication, rate limiting, persistent prediction logging, and cloud deployment are outside scope.
+- Model selection can be strengthened with stricter validation and untouched final-test evaluation.
 
 ---
 
 ## 🛣 Future Improvements
 
-- [x] Register the selected model in MLflow Model Registry
-- [x] Add a `champion` model alias
 - [ ] Strengthen train-validation-test separation
-- [ ] Add scheduled drift monitoring and alerts
-- [ ] Add centralized prediction and application logging
+- [ ] Schedule recurring drift checks
+- [ ] Connect alert rules to an operational Prometheus/Alertmanager stack
 - [ ] Add authentication and rate limiting
-- [ ] Track retention actions and outcomes
+- [ ] Add centralized prediction and application logs
+- [ ] Track retention interventions and business outcomes
 - [ ] Trigger retraining based on drift or performance thresholds
 
 ---
 
 ## 📦 Submission Contents
 
-The repository includes:
-
 - [x] Complete source code
-- [x] README with setup instructions
-- [x] Docker configuration
-- [x] MLflow screenshots and experiment results
-- [x] Sample API requests and responses
-- [x] Assumptions and design decisions
+- [x] Data preparation and feature engineering
+- [x] Multiple trained models
+- [x] Model evaluation and saved artifacts
+- [x] MLflow experiment tracking
+- [x] MLflow registered model and `champion` alias script
+- [x] FastAPI prediction service
+- [x] Business recommendations
+- [x] Dockerized local inference
 - [x] Automated tests
-- [x] Saved deployment model artifacts
+- [x] GitHub Actions workflow
+- [x] SHAP explainability
 - [x] Drift-monitoring utilities
-- [x] MLflow Model Registry registration and champion alias
+- [x] Feast feature store
+- [x] Airflow orchestration
+- [x] Prometheus metrics and alert rules
+- [x] Setup and usage documentation
+- [ ] Cloud deployment — intentionally excluded
 
 ---
-
-
-## Added MLOps Capabilities
-
-The following non-deployment capabilities are implemented:
-
-- MLflow Model Registry with model versions and a `champion` alias
-- Local Feast feature repository using Parquet and SQLite
-- Airflow DAG for data generation, preprocessing, feature engineering, training, registration, Feast updates, and tests
-- Prometheus-compatible `/metrics` endpoint
-- Prometheus alert rules for availability, error rate, and latency
-
-Cloud deployment and automated production CD are intentionally excluded.
 
 ## 👨‍💻 Author
 
