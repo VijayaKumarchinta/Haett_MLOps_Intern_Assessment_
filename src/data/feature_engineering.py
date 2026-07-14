@@ -233,30 +233,15 @@ def compute_engagement_features(engagement: pd.DataFrame) -> pd.DataFrame:
 
 
 def compute_demographic_features(users: pd.DataFrame) -> pd.DataFrame:
-    """Compute demographic features from user data."""
-    demo = users[
-        ["user_id", "age", "dietary_preference", "referral_source", "city"]
-    ].copy()
-
-    # Age groups with deterministic encoding using AGE_GROUP_MAP
+    """Compute demographics that are also accepted by the prediction API."""
+    demo = users[["user_id", "age"]].copy()
     age_group_labels = pd.cut(
         demo["age"],
         bins=[0, 25, 35, 50, 100],
         labels=["young_adult", "adult", "middle_age", "senior"],
     )
-    demo["age_group"] = age_group_labels.astype(str)
     demo["age_group_code"] = age_group_labels.map(AGE_GROUP_MAP).fillna(0).astype(int)
-
-    # One-hot encode categoricals
-    diet_dummies = pd.get_dummies(demo["dietary_preference"], prefix="diet")
-    refer_dummies = pd.get_dummies(demo["referral_source"], prefix="referral")
-
-    demo = pd.concat(
-        [demo[["user_id", "age", "age_group_code"]], diet_dummies, refer_dummies],
-        axis=1,
-    )
-
-    return demo
+    return demo[["user_id", "age", "age_group_code"]]
 
 
 def encode_categorical_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -315,7 +300,7 @@ def build_feature_matrix() -> tuple:
 
     # Merge all features
     print("  +-- Merging feature sets...")
-    feature_matrix = users[["user_id"]].copy()
+    feature_matrix = churn_labels[["user_id"]].drop_duplicates().copy()
     feature_matrix = feature_matrix.merge(recency, on="user_id", how="left")
     feature_matrix = feature_matrix.merge(frequency, on="user_id", how="left")
     feature_matrix = feature_matrix.merge(monetary, on="user_id", how="left")

@@ -23,6 +23,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.metrics import average_precision_score
 from xgboost import XGBClassifier
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -154,10 +155,7 @@ def train_and_evaluate(
                 cal_model = CalibratedClassifierCV(
                     tuned_model, method=CALIBRATION_METHOD, cv=3
                 )
-                cal_model.fit(
-                    np.vstack([X_train_scaled, X_val_scaled]),
-                    np.hstack([y_train.values, y_val.values]),
-                )
+                cal_model.fit(X_train_scaled, y_train)
                 final_model = cal_model
                 val_proba = cal_model.predict_proba(X_val_scaled)[:, 1]
             else:
@@ -195,10 +193,7 @@ def train_and_evaluate(
                 cal_model = CalibratedClassifierCV(
                     tuned_model, method=CALIBRATION_METHOD, cv=3
                 )
-                cal_model.fit(
-                    np.vstack([X_train, X_val]),
-                    np.hstack([y_train.values, y_val.values]),
-                )
+                cal_model.fit(X_train, y_train)
                 final_model = cal_model
                 val_proba = cal_model.predict_proba(X_val)[:, 1]
             else:
@@ -236,10 +231,7 @@ def train_and_evaluate(
                 cal_model = CalibratedClassifierCV(
                     tuned_model, method=CALIBRATION_METHOD, cv=3
                 )
-                cal_model.fit(
-                    np.vstack([X_train, X_val]),
-                    np.hstack([y_train.values, y_val.values]),
-                )
+                cal_model.fit(X_train, y_train)
                 final_model = cal_model
                 val_proba = cal_model.predict_proba(X_val)[:, 1]
             else:
@@ -261,13 +253,18 @@ def train_and_evaluate(
         else:
             raise ValueError(f"Unknown model: {model_name}")
 
-        # ── Compute metrics ──
+        # Validation PR-AUC selects the candidate model. Test metrics are
+        # reporting-only and do not influence model selection.
+        validation_pr_auc = float(average_precision_score(y_val, val_proba))
+
+        # ── Compute test metrics ──
         metrics = compute_classification_metrics(y_test, y_pred, y_proba)
         metrics["lift_at_10pct"] = compute_lift_at_top_k(y_test, y_proba, 0.1)
         metrics["lift_at_20pct"] = compute_lift_at_top_k(y_test, y_proba, 0.2)
 
         # Log metrics to MLflow
         mlflow.log_metrics(metrics)
+        mlflow.log_metric("validation_pr_auc", validation_pr_auc)
         mlflow.log_metric("optimal_threshold", threshold_info["optimal_threshold"])
         mlflow.log_metric("max_f1_at_optimal_threshold", threshold_info["max_f1"])
 
@@ -304,6 +301,7 @@ def train_and_evaluate(
             scaler,
             threshold_info["optimal_threshold"],
             tuned_model,
+            validation_pr_auc,
         )
 
 
@@ -354,7 +352,14 @@ def train_all_models(tune: bool = True):
 
     for model_name, params in MODEL_PARAMS.items():
         print(f"\n  -- Training {model_name} --")
-        model, metrics, scaler, optimal_threshold, tuned_model = train_and_evaluate(
+        (
+            model,
+            metrics,
+            scaler,
+            optimal_threshold,
+            tuned_model,
+            validation_pr_auc,
+        ) = train_and_evaluate(
             X_train,
             y_train,
             X_val,
@@ -371,10 +376,14 @@ def train_all_models(tune: bool = True):
             "scaler": scaler,
             "optimal_threshold": optimal_threshold,
             "tuned_model": tuned_model,  # raw model before calibration (for SHAP)
+            "validation_pr_auc": validation_pr_auc,
         }
 
-    # Select best model (by F1 score on test set)
-    best_model_name = max(results, key=lambda k: results[k]["metrics"]["f1_score"])
+    # Select the winner using validation data only.
+    best_model_name = max(
+        results,
+        key=lambda name: results[name]["validation_pr_auc"],
+    )
     best_result = results[best_model_name]
     print(f"\n[Best] Best model: {best_model_name}")
     print(f"   F1 Score: {best_result['metrics']['f1_score']:.4f}")
@@ -421,6 +430,8 @@ def train_all_models(tune: bool = True):
         "best_model_name": best_model_name,
         "features": X.columns.tolist(),
         "metrics": {k: float(v) for k, v in best_result["metrics"].items()},
+        "selection_metric": "validation_pr_auc",
+        "validation_pr_auc": float(best_result["validation_pr_auc"]),
         "optimal_threshold": float(optimal_threshold),
         "n_features": int(X.shape[1]),
         "n_train": int(len(X_train)),

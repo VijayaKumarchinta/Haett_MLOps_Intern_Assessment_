@@ -304,17 +304,19 @@ def test_demographic_age_groups(sample_users):
     assert demo[demo["user_id"] == 3]["age_group_code"].values[0] == 3
 
 
-def test_demographic_one_hot(sample_users):
-    """Test one-hot encoding of dietary preference and referral source."""
+def test_demographic_features_match_api_schema(sample_users):
+    """Demographic features should match fields accepted by the API."""
     demo = compute_demographic_features(sample_users)
-    # Should have diet_ and referral_ columns
-    diet_cols = [c for c in demo.columns if c.startswith("diet_")]
-    refer_cols = [c for c in demo.columns if c.startswith("referral_")]
-    assert len(diet_cols) > 0
-    assert len(refer_cols) > 0
 
+    assert list(demo.columns) == [
+        "user_id",
+        "age",
+        "age_group_code",
+    ]
 
-# ─── Integration Tests ───────────────────────────────────────────────────────
+    assert not any(column.startswith("diet_") for column in demo.columns)
+
+    assert not any(column.startswith("referral_") for column in demo.columns)
 
 
 def test_encode_categorical_handles_no_cats():
