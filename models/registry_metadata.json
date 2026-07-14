@@ -1,0 +1,8 @@
+{
+  "tracking_uri": "sqlite:////workspaces/Haett_MLOps_Intern_Assessment_/mlflow.db",
+  "registered_model_name": "haett_churn_model",
+  "version": "2",
+  "alias": "champion",
+  "run_id": "455ee22a200d423bab82548ffffe32c5",
+  "model_uri": "runs:/455ee22a200d423bab82548ffffe32c5/model"
+}

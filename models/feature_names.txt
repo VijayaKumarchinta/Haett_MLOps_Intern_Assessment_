@@ -15,16 +15,3 @@ avg_meals_skipped
 total_support_tickets
 age
 age_group_code
-diet_balanced
-diet_keto
-diet_low_carb
-diet_mediterranean
-diet_paleo
-diet_vegan
-referral_blog
-referral_direct
-referral_facebook
-referral_friend
-referral_google
-referral_instagram
-referral_tiktok

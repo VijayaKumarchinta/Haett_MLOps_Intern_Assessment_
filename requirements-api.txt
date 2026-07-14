@@ -9,7 +9,7 @@ pandas>=2.1,<3
 joblib>=1.3,<2
 
 # Match the scikit-learn minor version used to train the committed artifacts.
-scikit-learn>=1.8,<1.9
+scikit-learn==1.9.0
 
 # Explainability
 shap>=0.46,<1

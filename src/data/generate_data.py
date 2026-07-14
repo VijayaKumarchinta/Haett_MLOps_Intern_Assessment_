@@ -280,7 +280,12 @@ def generate_orders(users: pd.DataFrame) -> pd.DataFrame:
 
 
 def generate_subscriptions(users: pd.DataFrame) -> pd.DataFrame:
-    """Generate subscription data with vectorized operations."""
+    """Generate subscriptions active at the prediction snapshot.
+
+    Users with a higher latent churn propensity are more likely to have their
+    subscription end during the 30-day prediction window. Retained users have
+    an end date after that window.
+    """
     plan_types = [
         "weekly_basic",
         "weekly_premium",
@@ -288,57 +293,53 @@ def generate_subscriptions(users: pd.DataFrame) -> pd.DataFrame:
         "monthly_premium",
         "biweekly",
     ]
-    plan_probs = [0.25, 0.15, 0.3, 0.2, 0.1]
-    cancel_reasons = [
-        "too_expensive",
-        "not_enough_variety",
-        "delivery_issues",
-        "diet_change",
-        "traveling",
-    ]
+    plan_probs = [0.25, 0.15, 0.30, 0.20, 0.10]
 
-    # Duration based on activity — INCREASED to push more end_dates past snapshot
-    # Longer durations = more users active at snapshot = more chance to end in the window
-    # Using lognormal for longer right tail so more durations fall in the 30-day window
-    def _random_duration(mean, size):
-        # lognormal with sigma=1.2 creates long right tail
-        return (
-            np.random.lognormal(mean=np.log(mean), sigma=1.2, size=size)
-            .astype(int)
-            .clip(14)
-        )
+    propensity = pd.to_numeric(
+        users.get("_churn_propensity", pd.Series(0.30, index=users.index)),
+        errors="coerce",
+    ).fillna(0.30)
 
-    duration_days = np.where(
-        users["is_active"],
-        _random_duration(120, len(users)),
-        _random_duration(60, len(users)),
+    churn_probability = np.clip(
+        0.04 + 0.30 * propensity.to_numpy(dtype=float),
+        0.04,
+        0.30,
+    )
+    will_churn = np.random.random(len(users)) < churn_probability
+
+    churn_end_days = np.random.randint(1, CHURN_LABEL_DAYS + 1, len(users))
+    retained_end_days = np.random.randint(
+        CHURN_LABEL_DAYS + 1,
+        366,
+        len(users),
+    )
+    days_until_end = np.where(
+        will_churn,
+        churn_end_days,
+        retained_end_days,
     )
 
-    # Subscriptions start at signup
     start_date = pd.to_datetime(users["signup_date"])
-    end_sub_date = start_date + pd.to_timedelta(duration_days, unit="D")
+    end_date = SNAPSHOT_DATE + pd.to_timedelta(days_until_end, unit="D")
 
-    # Status: active if end_date > SNAPSHOT_DATE
-    is_active_status = end_sub_date > SNAPSHOT_DATE
-
-    # Cancellation reasons for subscriptions that ended before snapshot
-    reasons = np.where(
-        ~is_active_status, np.random.choice(cancel_reasons, len(users)), ""
-    )
-
-    subscriptions = pd.DataFrame(
+    return pd.DataFrame(
         {
-            "user_id": users["user_id"],
-            "plan_type": np.random.choice(plan_types, len(users), p=plan_probs),
+            "user_id": users["user_id"].astype(int),
+            "plan_type": np.random.choice(
+                plan_types,
+                len(users),
+                p=plan_probs,
+            ),
             "start_date": start_date,
-            "end_date": end_sub_date,
-            "monthly_price": np.round(np.random.uniform(29, 99, len(users)), 2),
-            "status": np.where(is_active_status, "active", "cancelled"),
-            "cancellation_reason": reasons,
+            "end_date": end_date,
+            "monthly_price": np.round(
+                np.random.uniform(29, 99, len(users)),
+                2,
+            ),
+            "status": "active",
+            "cancellation_reason": "",
         }
     )
-
-    return subscriptions
 
 
 def generate_engagement(users: pd.DataFrame, orders: pd.DataFrame) -> pd.DataFrame:
@@ -409,52 +410,37 @@ def generate_engagement(users: pd.DataFrame, orders: pd.DataFrame) -> pd.DataFra
 
 
 def generate_churn_labels(
-    users: pd.DataFrame, subscriptions: pd.DataFrame
+    users: pd.DataFrame,
+    subscriptions: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Generate churn labels based on subscription end dates.
-
-    A user is labeled as churned if their subscription ends within the
-    prediction window. To reach a target churn rate of ~4-5% (up from ~2%
-    with the narrow 30-day window), we use a wider capture window of
-    [SNAPSHOT - 15, SNAPSHOT + CHURN_LABEL_DAYS]. This includes users whose
-    subscription ended just before the snapshot — the "near-misses" who were
-    one step away from churning in the window.
-
-    This is still temporally consistent: features use data up to SNAPSHOT_DATE
-    but do NOT include the subscription status features that would reveal
-    whether a user already cancelled. The model must learn from behavioral
-    signals (orders, ratings, engagement) to predict near-term churn.
-    """
+    """Label active users who churn during the next 30 days."""
     window_end = SNAPSHOT_DATE + pd.Timedelta(days=CHURN_LABEL_DAYS)
-    window_start = SNAPSHOT_DATE - pd.Timedelta(
-        days=30
-    )  # expanded to capture 4-5% churn rate
 
-    # Find each user's latest subscription end date
     subs = subscriptions.copy()
     subs["start_date"] = pd.to_datetime(subs["start_date"])
     subs["end_date"] = pd.to_datetime(subs["end_date"])
 
-    latest_sub = subs.sort_values("end_date").groupby("user_id").last().reset_index()
-
-    merged = users[["user_id"]].merge(
-        latest_sub[["user_id", "status", "end_date", "start_date"]],
-        on="user_id",
-        how="left",
+    latest_sub = (
+        subs.sort_values(["user_id", "start_date", "end_date"])
+        .groupby("user_id", as_index=False)
+        .last()
     )
 
-    # Churned = subscription ended in or just before the prediction window
-    merged["churned"] = (
-        merged["end_date"].between(window_start, window_end, inclusive="left")
+    active_at_snapshot = latest_sub[
+        (latest_sub["start_date"] <= SNAPSHOT_DATE)
+        & (latest_sub["end_date"] > SNAPSHOT_DATE)
+    ].copy()
+
+    active_at_snapshot["churned"] = (
+        active_at_snapshot["end_date"] <= window_end
     ).astype(int)
-
-    merged["churn_date"] = np.where(
-        merged["churned"] == 1,
-        merged["end_date"],
-        None,
+    active_at_snapshot["churn_date"] = active_at_snapshot["end_date"].where(
+        active_at_snapshot["churned"].eq(1)
     )
 
-    return merged[["user_id", "churned", "churn_date"]]
+    return active_at_snapshot[["user_id", "churned", "churn_date"]].reset_index(
+        drop=True
+    )
 
 
 def generate_all_data() -> dict:
@@ -475,6 +461,9 @@ def generate_all_data() -> dict:
 
     print("  +-- Generating churn labels...")
     churn_labels = generate_churn_labels(users, subscriptions)
+
+    # Every saved user belongs to the active-at-snapshot prediction cohort.
+    users["is_active"] = True
 
     # Save raw data
     RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
