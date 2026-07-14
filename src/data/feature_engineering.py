@@ -12,7 +12,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from src.utils.config import (
     PROCESSED_DATA_DIR,
     FEATURES_DIR,
-    RANDOM_SEED,
     SNAPSHOT_DATE,
     AGE_GROUP_MAP,
 )
@@ -26,9 +25,13 @@ def compute_recency_features(orders: pd.DataFrame) -> pd.DataFrame:
     reference_date = SNAPSHOT_DATE
 
     # Latest order per user
-    latest_orders = orders.groupby("user_id").agg(
-        last_order_date=("order_date", "max"),
-    ).reset_index()
+    latest_orders = (
+        orders.groupby("user_id")
+        .agg(
+            last_order_date=("order_date", "max"),
+        )
+        .reset_index()
+    )
 
     # Days since last order — the core recency feature
     latest_orders["days_since_last_order"] = (
@@ -44,7 +47,9 @@ def compute_recency_features(orders: pd.DataFrame) -> pd.DataFrame:
     ).dt.days.clip(lower=0)
 
     # Drop intermediate date columns
-    latest_orders = latest_orders.drop(columns=["last_order_date", "first_order_date"], errors="ignore")
+    latest_orders = latest_orders.drop(
+        columns=["last_order_date", "first_order_date"], errors="ignore"
+    )
 
     return latest_orders
 
@@ -56,28 +61,42 @@ def compute_frequency_features(orders: pd.DataFrame) -> pd.DataFrame:
     """
     orders_sorted = orders.sort_values(["user_id", "order_date"]).copy()
 
-    freq = orders_sorted.groupby("user_id").agg(
-        total_orders=("order_id", "count"),
-        first_order_date=("order_date", "min"),
-    ).reset_index()
+    freq = (
+        orders_sorted.groupby("user_id")
+        .agg(
+            total_orders=("order_id", "count"),
+            first_order_date=("order_date", "min"),
+        )
+        .reset_index()
+    )
 
     # Order consistency (std of inter-order time) — per assessment criteria
-    orders_sorted["prev_order_date"] = orders_sorted.groupby("user_id")["order_date"].shift(1)
+    orders_sorted["prev_order_date"] = orders_sorted.groupby("user_id")[
+        "order_date"
+    ].shift(1)
     orders_sorted["days_between_orders"] = (
         orders_sorted["order_date"] - orders_sorted["prev_order_date"]
     ).dt.days
 
-    order_consistency = orders_sorted.groupby("user_id")["days_between_orders"].agg(
-        std_days_between_orders="std",
-    ).reset_index()
-    order_consistency["std_days_between_orders"] = order_consistency["std_days_between_orders"].fillna(0)
+    order_consistency = (
+        orders_sorted.groupby("user_id")["days_between_orders"]
+        .agg(
+            std_days_between_orders="std",
+        )
+        .reset_index()
+    )
+    order_consistency["std_days_between_orders"] = order_consistency[
+        "std_days_between_orders"
+    ].fillna(0)
 
     freq = freq.merge(order_consistency, on="user_id", how="left")
 
     # Orders in the last 30 days — per assessment criteria
     window_start = SNAPSHOT_DATE - pd.Timedelta(days=30)
     recent_orders = orders_sorted[orders_sorted["order_date"] >= window_start]
-    orders_last_30 = recent_orders.groupby("user_id").size().reset_index(name="orders_last_30_days")
+    orders_last_30 = (
+        recent_orders.groupby("user_id").size().reset_index(name="orders_last_30_days")
+    )
     freq = freq.merge(orders_last_30, on="user_id", how="left")
 
     freq = freq.drop(columns=["first_order_date"], errors="ignore")
@@ -90,24 +109,34 @@ def compute_monetary_features(orders: pd.DataFrame) -> pd.DataFrame:
 
     Per the assessment criteria: Average order value, Coupon usage
     """
-    monetary = orders.groupby("user_id").agg(
-        avg_order_value=("order_value", "mean"),
-        avg_rating=("rating", "mean"),
-    ).reset_index()
+    monetary = (
+        orders.groupby("user_id")
+        .agg(
+            avg_order_value=("order_value", "mean"),
+            avg_rating=("rating", "mean"),
+        )
+        .reset_index()
+    )
 
     # Coupon usage — per assessment criteria
     if "coupon_used" in orders.columns:
-        coupon_agg = orders.groupby("user_id").agg(
-            coupon_usage_count=("coupon_used", "sum"),
-            total_orders_with_coupon_col=("coupon_used", "count"),
-        ).reset_index()
+        coupon_agg = (
+            orders.groupby("user_id")
+            .agg(
+                coupon_usage_count=("coupon_used", "sum"),
+                total_orders_with_coupon_col=("coupon_used", "count"),
+            )
+            .reset_index()
+        )
         # Ratio of orders where coupon was used
         coupon_agg["coupon_usage_rate"] = (
-            coupon_agg["coupon_usage_count"] / coupon_agg["total_orders_with_coupon_col"]
+            coupon_agg["coupon_usage_count"]
+            / coupon_agg["total_orders_with_coupon_col"]
         )
         monetary = monetary.merge(
             coupon_agg[["user_id", "coupon_usage_count", "coupon_usage_rate"]],
-            on="user_id", how="left",
+            on="user_id",
+            how="left",
         )
     else:
         monetary["coupon_usage_count"] = 0
@@ -146,10 +175,14 @@ def compute_subscription_features(subscriptions: pd.DataFrame) -> pd.DataFrame:
     )
 
     # Aggregate subscription info (REMOVED leaking fields: is_sub_active, total_subscription_days, days_since_cancellation)
-    agg = subs.groupby("user_id").agg(
-        first_subscription_start=("start_date", "min"),
-        monthly_price=("monthly_price", "last"),
-    ).reset_index()
+    agg = (
+        subs.groupby("user_id")
+        .agg(
+            first_subscription_start=("start_date", "min"),
+            monthly_price=("monthly_price", "last"),
+        )
+        .reset_index()
+    )
 
     # Subscription tenure from first subscription start
     agg["subscription_tenure_days"] = (
@@ -186,18 +219,24 @@ def compute_engagement_features(engagement: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame(columns=["user_id"])
 
     # Core engagement features
-    eng_features = eng.groupby("user_id").agg(
-        avg_app_logins=("app_logins", "mean"),
-        avg_meals_skipped=("meals_skipped", "mean"),
-        total_support_tickets=("support_tickets", "sum"),
-    ).reset_index()
+    eng_features = (
+        eng.groupby("user_id")
+        .agg(
+            avg_app_logins=("app_logins", "mean"),
+            avg_meals_skipped=("meals_skipped", "mean"),
+            total_support_tickets=("support_tickets", "sum"),
+        )
+        .reset_index()
+    )
 
     return eng_features
 
 
 def compute_demographic_features(users: pd.DataFrame) -> pd.DataFrame:
     """Compute demographic features from user data."""
-    demo = users[["user_id", "age", "dietary_preference", "referral_source", "city"]].copy()
+    demo = users[
+        ["user_id", "age", "dietary_preference", "referral_source", "city"]
+    ].copy()
 
     # Age groups with deterministic encoding using AGE_GROUP_MAP
     age_group_labels = pd.cut(
@@ -213,12 +252,11 @@ def compute_demographic_features(users: pd.DataFrame) -> pd.DataFrame:
     refer_dummies = pd.get_dummies(demo["referral_source"], prefix="referral")
 
     demo = pd.concat(
-        [demo[["user_id", "age", "age_group_code"]], diet_dummies, refer_dummies], axis=1
+        [demo[["user_id", "age", "age_group_code"]], diet_dummies, refer_dummies],
+        axis=1,
     )
 
     return demo
-
-
 
 
 def encode_categorical_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -340,7 +378,9 @@ def build_feature_matrix() -> tuple:
     pd.DataFrame({"churned": y}).to_csv(FEATURES_DIR / "target.csv", index=False)
 
     print(f"\n[OK] Feature matrix complete! Shape: {feature_matrix.shape}")
-    print(f"   Features: {len(feature_matrix.columns) - 2} (excluding user_id and target)")
+    print(
+        f"   Features: {len(feature_matrix.columns) - 2} (excluding user_id and target)"
+    )
     print(f"   Positive class ratio: {y.mean():.1%}")
     print(f"   NaN count in feature matrix: {feature_matrix.isna().sum().sum()}")
 

@@ -33,17 +33,25 @@ REFERENCE_DIR = MONITORING_DIR / "reference"
 DRIFT_REPORTS_DIR = MONITORING_DIR / "reports"
 
 # Drift thresholds
-DRIFT_THRESHOLD = 0.15   # Share of drifted features → warning
+DRIFT_THRESHOLD = 0.15  # Share of drifted features → warning
 CRITICAL_DRIFT_THRESHOLD = 0.30  # → critical alert
 KS_PVALUE_THRESHOLD = 0.05  # p-value below this = significant drift
 PSI_THRESHOLD = 0.2  # Population Stability Index above this = significant drift
 
 # Key features to monitor
 MONITORED_FEATURES = [
-    "days_since_last_order", "total_orders", "total_spent",
-    "avg_order_value", "avg_rating", "total_support_tickets",
-    "is_sub_active", "avg_app_logins", "login_decline",
-    "order_frequency_per_month", "subscription_tenure_days", "tenure_days",
+    "days_since_last_order",
+    "total_orders",
+    "total_spent",
+    "avg_order_value",
+    "avg_rating",
+    "total_support_tickets",
+    "is_sub_active",
+    "avg_app_logins",
+    "login_decline",
+    "order_frequency_per_month",
+    "subscription_tenure_days",
+    "tenure_days",
 ]
 
 
@@ -80,11 +88,17 @@ def save_reference_data(
             cols = features.select_dtypes(include=[np.number]).columns.tolist()
             cols = [c for c in cols if c != "user_id"][:50]
         features[cols].to_parquet(ref_dir / "features.parquet")
-        logger.info("Reference saved: %s (%d samples, %d features)",
-                     ref_dir / "features.parquet", len(features), len(cols))
+        logger.info(
+            "Reference saved: %s (%d samples, %d features)",
+            ref_dir / "features.parquet",
+            len(features),
+            len(cols),
+        )
 
     if predictions is not None:
-        pd.DataFrame({"prediction": predictions}).to_parquet(ref_dir / "predictions.parquet")
+        pd.DataFrame({"prediction": predictions}).to_parquet(
+            ref_dir / "predictions.parquet"
+        )
 
     meta = {
         "timestamp": timestamp,
@@ -139,7 +153,9 @@ def _compute_psi(expected: np.ndarray, actual: np.ndarray, n_bins: int = 10) -> 
     if len(bins) < 2:
         return 0.0
 
-    expected_pct = np.histogram(expected, bins=bins, density=False)[0].astype(float) + 1e-10
+    expected_pct = (
+        np.histogram(expected, bins=bins, density=False)[0].astype(float) + 1e-10
+    )
     actual_pct = np.histogram(actual, bins=bins, density=False)[0].astype(float) + 1e-10
     expected_pct /= expected_pct.sum()
     actual_pct /= actual_pct.sum()
@@ -159,8 +175,13 @@ def _detect_column_drift(
     cur_values = cur_values[~np.isnan(cur_values)]
 
     if len(ref_values) < 5 or len(cur_values) < 5:
-        return {"drift_score": 0.0, "p_value": 1.0, "drifted": False,
-                "n_ref": len(ref_values), "n_cur": len(cur_values)}
+        return {
+            "drift_score": 0.0,
+            "p_value": 1.0,
+            "drifted": False,
+            "n_ref": len(ref_values),
+            "n_cur": len(cur_values),
+        }
 
     # Check if binary/categorical (few unique values)
     n_unique = len(np.unique(np.concatenate([ref_values, cur_values])))
@@ -219,7 +240,10 @@ def generate_drift_report(
     # Align columns
     common_cols = [c for c in ref_features.columns if c in current_data.columns]
     if not common_cols:
-        return {"status": "error", "error": "No common columns between reference and current data."}
+        return {
+            "status": "error",
+            "error": "No common columns between reference and current data.",
+        }
 
     # Detect drift per column
     feature_metrics = {}
@@ -274,7 +298,9 @@ def generate_drift_report(
         "drift_share": drift_share,
     }
 
-    logger.info("Drift report: status=%s, drifted=%d/%d features", status, n_drifted, n_total)
+    logger.info(
+        "Drift report: status=%s, drifted=%d/%d features", status, n_drifted, n_total
+    )
     return result
 
 
@@ -288,14 +314,16 @@ def list_drift_reports(n_recent: int = 10) -> pd.DataFrame:
         try:
             with open(json_path) as f:
                 data = json.load(f)
-            reports.append({
-                "report": json_path.stem,
-                "timestamp": data.get("timestamp", ""),
-                "status": data.get("status", "unknown"),
-                "drift_share": data.get("drift_share", 0),
-                "n_drifted": data.get("n_drifted_features", 0),
-                "n_features": data.get("n_features", 0),
-            })
+            reports.append(
+                {
+                    "report": json_path.stem,
+                    "timestamp": data.get("timestamp", ""),
+                    "status": data.get("status", "unknown"),
+                    "drift_share": data.get("drift_share", 0),
+                    "n_drifted": data.get("n_drifted_features", 0),
+                    "n_features": data.get("n_features", 0),
+                }
+            )
         except Exception:
             continue
     return pd.DataFrame(reports)

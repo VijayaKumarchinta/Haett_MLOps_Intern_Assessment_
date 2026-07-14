@@ -2,7 +2,6 @@
 Tests for the Metrics Utility Module
 """
 
-import pytest
 import numpy as np
 import sys
 from pathlib import Path

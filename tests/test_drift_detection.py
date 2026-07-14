@@ -26,6 +26,7 @@ from src.monitoring.drift_detection import (
 def clean_monitoring_dirs():
     """Ensure clean monitoring directories before each test."""
     import shutil
+
     if MONITORING_DIR.exists():
         shutil.rmtree(MONITORING_DIR)
     MONITORING_DIR.mkdir(parents=True, exist_ok=True)
@@ -38,20 +39,22 @@ def clean_monitoring_dirs():
 def sample_features():
     """Generate a small sample feature matrix for testing."""
     np.random.seed(42)
-    return pd.DataFrame({
-        "days_since_last_order": np.random.exponential(15, 100).astype(int),
-        "total_orders": np.random.poisson(12, 100),
-        "total_spent": np.random.exponential(250, 100).round(2),
-        "avg_order_value": np.random.normal(32, 12, 100).clip(5).round(2),
-        "avg_rating": np.random.uniform(3, 5, 100).round(1),
-        "total_support_tickets": np.random.poisson(1, 100),
-        "is_sub_active": np.random.choice([0, 1], 100, p=[0.25, 0.75]),
-        "avg_app_logins": np.random.exponential(3, 100),
-        "login_decline": np.random.exponential(1, 100),
-        "order_frequency_per_month": np.random.exponential(4, 100),
-        "subscription_tenure_days": np.random.exponential(180, 100).astype(int),
-        "tenure_days": np.random.exponential(200, 100).astype(int),
-    })
+    return pd.DataFrame(
+        {
+            "days_since_last_order": np.random.exponential(15, 100).astype(int),
+            "total_orders": np.random.poisson(12, 100),
+            "total_spent": np.random.exponential(250, 100).round(2),
+            "avg_order_value": np.random.normal(32, 12, 100).clip(5).round(2),
+            "avg_rating": np.random.uniform(3, 5, 100).round(1),
+            "total_support_tickets": np.random.poisson(1, 100),
+            "is_sub_active": np.random.choice([0, 1], 100, p=[0.25, 0.75]),
+            "avg_app_logins": np.random.exponential(3, 100),
+            "login_decline": np.random.exponential(1, 100),
+            "order_frequency_per_month": np.random.exponential(4, 100),
+            "subscription_tenure_days": np.random.exponential(180, 100).astype(int),
+            "tenure_days": np.random.exponential(200, 100).astype(int),
+        }
+    )
 
 
 @pytest.fixture
@@ -124,11 +127,15 @@ class TestGenerateDriftReport:
             json_path = DRIFT_REPORTS_DIR / "test_report.json"
             assert json_path.exists()
 
-    def test_generate_report_drifted_detects_more(self, sample_features, drifted_features):
+    def test_generate_report_drifted_detects_more(
+        self, sample_features, drifted_features
+    ):
         save_reference_data(features=sample_features)
         baseline = generate_drift_report(sample_features)
         drifted_result = generate_drift_report(drifted_features)
-        assert drifted_result.get("n_drifted_features", 0) >= baseline.get("n_drifted_features", 0)
+        assert drifted_result.get("n_drifted_features", 0) >= baseline.get(
+            "n_drifted_features", 0
+        )
 
     def test_generate_report_critical_drift(self, sample_features, drifted_features):
         save_reference_data(features=sample_features)
@@ -176,6 +183,7 @@ class TestGenerateSyntheticCurrentData:
 
     def test_synthetic_data_shape(self):
         from scripts.check_drift import generate_synthetic_current_data
+
         data = generate_synthetic_current_data(n_samples=50)
         assert len(data) == 50
         assert "days_since_last_order" in data.columns

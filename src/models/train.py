@@ -47,13 +47,16 @@ from src.utils.metrics import (
 from src.monitoring.drift_detection import save_reference_data
 from datetime import datetime
 
-
 # ─── Hyperparameter Tuning ───────────────────────────────────────────────────
 
 
 def tune_hyperparameters(
-    model, param_space: dict, X_train: pd.DataFrame, y_train: pd.Series,
-    model_name: str, n_iter: int = N_HPARAM_ITER,
+    model,
+    param_space: dict,
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    model_name: str,
+    n_iter: int = N_HPARAM_ITER,
 ):
     """Run RandomizedSearchCV with stratified 5-fold cross-validation.
 
@@ -105,8 +108,15 @@ def _log_model_to_mlflow(model, artifact_path: str):
 
 
 def train_and_evaluate(
-    X_train, y_train, X_val, y_val, X_test, y_test,
-    model_name: str, params: dict, tune: bool = True,
+    X_train,
+    y_train,
+    X_val,
+    y_val,
+    X_test,
+    y_test,
+    model_name: str,
+    params: dict,
+    tune: bool = True,
 ):
     """Train a single model with optional hyperparameter tuning and MLflow tracking.
 
@@ -130,15 +140,20 @@ def train_and_evaluate(
             if tune:
                 base = LogisticRegression(random_state=RANDOM_SEED, max_iter=1000)
                 tuned_model = tune_hyperparameters(
-                    base, HPARAM_SEARCH_SPACES[model_name],
-                    X_train_scaled, y_train, model_name,
+                    base,
+                    HPARAM_SEARCH_SPACES[model_name],
+                    X_train_scaled,
+                    y_train,
+                    model_name,
                 )
             else:
                 tuned_model = LogisticRegression(**params)
                 tuned_model.fit(X_train_scaled, y_train)
 
             if CALIBRATE_PROBABILITIES:
-                cal_model = CalibratedClassifierCV(tuned_model, method=CALIBRATION_METHOD, cv=3)
+                cal_model = CalibratedClassifierCV(
+                    tuned_model, method=CALIBRATION_METHOD, cv=3
+                )
                 cal_model.fit(
                     np.vstack([X_train_scaled, X_val_scaled]),
                     np.hstack([y_train.values, y_val.values]),
@@ -166,15 +181,20 @@ def train_and_evaluate(
             if tune:
                 base = RandomForestClassifier(random_state=RANDOM_SEED)
                 tuned_model = tune_hyperparameters(
-                    base, HPARAM_SEARCH_SPACES[model_name],
-                    X_train, y_train, model_name,
+                    base,
+                    HPARAM_SEARCH_SPACES[model_name],
+                    X_train,
+                    y_train,
+                    model_name,
                 )
             else:
                 tuned_model = RandomForestClassifier(**params)
                 tuned_model.fit(X_train, y_train)
 
             if CALIBRATE_PROBABILITIES:
-                cal_model = CalibratedClassifierCV(tuned_model, method=CALIBRATION_METHOD, cv=3)
+                cal_model = CalibratedClassifierCV(
+                    tuned_model, method=CALIBRATION_METHOD, cv=3
+                )
                 cal_model.fit(
                     np.vstack([X_train, X_val]),
                     np.hstack([y_train.values, y_val.values]),
@@ -190,21 +210,32 @@ def train_and_evaluate(
             y_pred = (y_proba >= threshold_info["optimal_threshold"]).astype(int)
 
             _log_model_to_mlflow(final_model, "model")
-            importances = tuned_model.feature_importances_ if hasattr(tuned_model, "feature_importances_") else None
+            importances = (
+                tuned_model.feature_importances_
+                if hasattr(tuned_model, "feature_importances_")
+                else None
+            )
 
         elif model_name == "xgb_classifier":
             if tune:
                 base = XGBClassifier(random_state=RANDOM_SEED)
                 tuned_model = tune_hyperparameters(
-                    base, HPARAM_SEARCH_SPACES[model_name],
-                    X_train, y_train, model_name,
+                    base,
+                    HPARAM_SEARCH_SPACES[model_name],
+                    X_train,
+                    y_train,
+                    model_name,
                 )
             else:
                 tuned_model = XGBClassifier(**params)
-                tuned_model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+                tuned_model.fit(
+                    X_train, y_train, eval_set=[(X_val, y_val)], verbose=False
+                )
 
             if CALIBRATE_PROBABILITIES:
-                cal_model = CalibratedClassifierCV(tuned_model, method=CALIBRATION_METHOD, cv=3)
+                cal_model = CalibratedClassifierCV(
+                    tuned_model, method=CALIBRATION_METHOD, cv=3
+                )
                 cal_model.fit(
                     np.vstack([X_train, X_val]),
                     np.hstack([y_train.values, y_val.values]),
@@ -221,7 +252,11 @@ def train_and_evaluate(
 
             # Use sklearn flavor for calibrated XGB (CalibratedClassifierCV), xgboost for native
             _log_model_to_mlflow(final_model, "model")
-            importances = tuned_model.feature_importances_ if hasattr(tuned_model, "feature_importances_") else None
+            importances = (
+                tuned_model.feature_importances_
+                if hasattr(tuned_model, "feature_importances_")
+                else None
+            )
 
         else:
             raise ValueError(f"Unknown model: {model_name}")
@@ -238,10 +273,12 @@ def train_and_evaluate(
 
         # ── Log feature importance as CSV artifact ──
         if importances is not None:
-            importance_df = pd.DataFrame({
-                "feature": X_train.columns.tolist(),
-                "importance": importances,
-            }).sort_values("importance", ascending=False)
+            importance_df = pd.DataFrame(
+                {
+                    "feature": X_train.columns.tolist(),
+                    "importance": importances,
+                }
+            ).sort_values("importance", ascending=False)
             imp_path = MODELS_DIR / f"feature_importance_{model_name}.csv"
             importance_df.to_csv(imp_path, index=False)
             mlflow.log_artifact(str(imp_path))
@@ -261,7 +298,13 @@ def train_and_evaluate(
         print(f"      optimal_threshold: {threshold_info['optimal_threshold']:.4f}")
 
         # Return both the final model (for inference) and the tuned model (for SHAP)
-        return final_model, metrics, scaler, threshold_info["optimal_threshold"], tuned_model
+        return (
+            final_model,
+            metrics,
+            scaler,
+            threshold_info["optimal_threshold"],
+            tuned_model,
+        )
 
 
 # ─── Pipeline Orchestrator ───────────────────────────────────────────────────
@@ -292,22 +335,35 @@ def train_all_models(tune: bool = True):
         X, y, test_size=0.2, random_state=RANDOM_SEED, stratify=y
     )
     X_train, X_val, y_train, y_val = train_test_split(
-        X_train_full, y_train_full, test_size=0.25,
-        random_state=RANDOM_SEED, stratify=y_train_full,
+        X_train_full,
+        y_train_full,
+        test_size=0.25,
+        random_state=RANDOM_SEED,
+        stratify=y_train_full,
     )
     print(f"   Train: {len(X_train)} samples")
     print(f"   Val:   {len(X_val)} samples")
     print(f"   Test:  {len(X_test)} samples")
 
     # Train models
-    print("\n[...] Training models..." + (" (with hyperparameter tuning)" if tune else " (default params)"))
+    print(
+        "\n[...] Training models..."
+        + (" (with hyperparameter tuning)" if tune else " (default params)")
+    )
     results = {}
 
     for model_name, params in MODEL_PARAMS.items():
         print(f"\n  -- Training {model_name} --")
         model, metrics, scaler, optimal_threshold, tuned_model = train_and_evaluate(
-            X_train, y_train, X_val, y_val, X_test, y_test,
-            model_name, params, tune=tune,
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+            X_test,
+            y_test,
+            model_name,
+            params,
+            tune=tune,
         )
         results[model_name] = {
             "model": model,
@@ -358,7 +414,7 @@ def train_all_models(tune: bool = True):
     # Save feature names
     with open(MODELS_DIR / "feature_names.txt", "w") as f:
         f.write("\n".join(X.columns.tolist()))
-    print(f"   - Feature names saved")
+    print("   - Feature names saved")
 
     # Save model metadata
     metadata = {
@@ -377,19 +433,22 @@ def train_all_models(tune: bool = True):
     }
     with open(MODELS_DIR / "model_metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)
-    print(f"   - Metadata saved")
+    print("   - Metadata saved")
 
     # ── Save Reference Data for Drift Monitoring ──
-    print(f"\n[...] Saving reference data for drift monitoring...")
+    print("\n[...] Saving reference data for drift monitoring...")
     try:
         # Use the full feature matrix (without user_id) as reference
         ref_X = X.copy()
         save_reference_data(
             features=ref_X,
             predictions=None,
-            metadata={"model_name": best_model_name, "pipeline_run": datetime.now().isoformat()},
+            metadata={
+                "model_name": best_model_name,
+                "pipeline_run": datetime.now().isoformat(),
+            },
         )
-        print(f"   [OK] Reference data saved for drift monitoring")
+        print("   [OK] Reference data saved for drift monitoring")
     except Exception as ref_err:
         print(f"   [!] Reference data saving skipped: {ref_err}")
 
@@ -401,7 +460,7 @@ def train_all_models(tune: bool = True):
         shap_model = best_result.get("tuned_model", best_result["model"])
 
         # Use a small sample of the test set for SHAP explanation
-        X_explain = X_test.iloc[:min(50, len(X_test))]
+        X_explain = X_test.iloc[: min(50, len(X_test))]
 
         # Use TreeExplainer with default tree_path_dependent algorithm (fast, no background data)
         explainer = shap.TreeExplainer(shap_model)
@@ -412,7 +471,9 @@ def train_all_models(tune: bool = True):
         # Index [..., 1] = positive class (churned)
         shap_val = np.array(shap_values)
         if shap_val.ndim == 3:
-            shap_values_class = shap_val[:, :, 1]  # positive class: (n_samples, n_features)
+            shap_values_class = shap_val[
+                :, :, 1
+            ]  # positive class: (n_samples, n_features)
         elif shap_val.ndim == 2:
             shap_values_class = shap_val
         elif isinstance(shap_values, (list, tuple)) and len(shap_values) == 2:
@@ -425,10 +486,12 @@ def train_all_models(tune: bool = True):
 
         # ── Global SHAP feature importance (mean absolute value) ──
         shap_importance = np.abs(shap_values_class).mean(axis=0)
-        shap_df = pd.DataFrame({
-            "feature": X_explain.columns.tolist(),
-            "shap_importance": shap_importance,
-        }).sort_values("shap_importance", ascending=False)
+        shap_df = pd.DataFrame(
+            {
+                "feature": X_explain.columns.tolist(),
+                "shap_importance": shap_importance,
+            }
+        ).sort_values("shap_importance", ascending=False)
 
         shap_csv_path = MODELS_DIR / f"shap_importance_{best_model_name}.csv"
         shap_df.to_csv(shap_csv_path, index=False)
@@ -438,11 +501,13 @@ def train_all_models(tune: bool = True):
         # ── SHAP beeswarm plot (most informative visualization) ──
         try:
             import matplotlib
+
             matplotlib.use("Agg")
             import matplotlib.pyplot as plt
 
             shap.summary_plot(
-                shap_values_class, X_explain.values,
+                shap_values_class,
+                X_explain.values,
                 feature_names=X_explain.columns.tolist(),
                 max_display=15,
                 show=False,
@@ -456,13 +521,15 @@ def train_all_models(tune: bool = True):
         except Exception as plot_err:
             print(f"   [!] SHAP plot generation skipped: {plot_err}")
 
-        print(f"[OK] SHAP explainability complete")
+        print("[OK] SHAP explainability complete")
     except Exception as shap_err:
         print(f"[!] SHAP analysis skipped: {shap_err}")
 
-    print(f"\n[Results] Final Model Comparison:\n")
-    print(f"{'Model':<20} {'F1':<8} {'ROC-AUC':<10} {'PR-AUC':<10} {'Precision':<10} {'Recall':<10} {'Brier':<8} {'Lift@10':<8}")
-    print('-' * 84)
+    print("\n[Results] Final Model Comparison:\n")
+    print(
+        f"{'Model':<20} {'F1':<8} {'ROC-AUC':<10} {'PR-AUC':<10} {'Precision':<10} {'Recall':<10} {'Brier':<8} {'Lift@10':<8}"
+    )
+    print("-" * 84)
     for model_name, result in results.items():
         m = result["metrics"]
         print(

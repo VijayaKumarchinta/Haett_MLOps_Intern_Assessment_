@@ -48,10 +48,10 @@ def run_full_pipeline():
     best_metrics = results[best_model_name]["metrics"]
     for k, v in best_metrics.items():
         print(f"    {k}: {v}")
-    print(f"\n  To start the API:")
-    print(f"    uvicorn src.api.main:app --reload")
-    print(f"\n  To view MLflow UI:")
-    print(f"    mlflow ui --backend-store-uri mlruns")
+    print("\n  To start the API:")
+    print("    uvicorn src.api.main:app --reload")
+    print("\n  To view MLflow UI:")
+    print("    mlflow ui --backend-store-uri mlruns")
     print()
 
 

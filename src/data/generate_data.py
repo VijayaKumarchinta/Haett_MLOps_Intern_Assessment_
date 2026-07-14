@@ -15,7 +15,6 @@ from src.utils.config import (
     RAW_DATA_DIR,
     RANDOM_SEED,
     N_USERS,
-    CHURN_RATE,
     SNAPSHOT_DATE,
     CHURN_LABEL_DAYS,
 )
@@ -33,16 +32,40 @@ def generate_users(n_users: int = N_USERS) -> pd.DataFrame:
     - Referral source: friend referrals are more loyal
     The model can learn these patterns from behavioral features alone.
     """
-    signup_start = SNAPSHOT_DATE - pd.Timedelta(days=545)  # ~18 months of signups = longer history
-    signup_end = SNAPSHOT_DATE - pd.Timedelta(days=90)  # last signup 90 days before snapshot — ensures ALL users have ≥90 days of history for engagement trends and rolling windows
+    signup_start = SNAPSHOT_DATE - pd.Timedelta(
+        days=545
+    )  # ~18 months of signups = longer history
+    signup_end = SNAPSHOT_DATE - pd.Timedelta(
+        days=90
+    )  # last signup 90 days before snapshot — ensures ALL users have ≥90 days of history for engagement trends and rolling windows
 
     diet_types = ["balanced", "keto", "vegan", "paleo", "mediterranean", "low_carb"]
     cities = [
-        "New York", "Los Angeles", "Chicago", "Houston", "Phoenix",
-        "San Francisco", "Seattle", "Miami", "Denver", "Austin",
-        "Portland", "Boston", "Atlanta", "Dallas", "San Diego",
+        "New York",
+        "Los Angeles",
+        "Chicago",
+        "Houston",
+        "Phoenix",
+        "San Francisco",
+        "Seattle",
+        "Miami",
+        "Denver",
+        "Austin",
+        "Portland",
+        "Boston",
+        "Atlanta",
+        "Dallas",
+        "San Diego",
     ]
-    referral_sources = ["google", "facebook", "instagram", "friend", "blog", "tiktok", "direct"]
+    referral_sources = [
+        "google",
+        "facebook",
+        "instagram",
+        "friend",
+        "blog",
+        "tiktok",
+        "direct",
+    ]
 
     # Use uniform distribution so users span the full 545-day window evenly
     # This gives ALL users significant engagement history (vs exponential which clusters most near signup_start)
@@ -78,8 +101,12 @@ def generate_users(n_users: int = N_USERS) -> pd.DataFrame:
     # keto: +0.20, paleo: +0.18, low_carb: +0.10, vegan: -0.10, med: -0.15
     # (was +0.15/+0.15/+0.05/-0.05/-0.10)
     diet_propensity = {
-        "keto": 0.20, "paleo": 0.18, "low_carb": 0.10,
-        "balanced": 0.0, "vegan": -0.10, "mediterranean": -0.15,
+        "keto": 0.20,
+        "paleo": 0.18,
+        "low_carb": 0.10,
+        "balanced": 0.0,
+        "vegan": -0.10,
+        "mediterranean": -0.15,
     }
     for diet, prop in diet_propensity.items():
         churn_propensity[dietary_preferences == diet] += prop
@@ -89,15 +116,22 @@ def generate_users(n_users: int = N_USERS) -> pd.DataFrame:
     # friend: -0.18, blog: -0.08, direct: -0.05
     # (was +0.12/+0.08/+0.05/+0.02/-0.12/-0.05/-0.03)
     referral_propensity = {
-        "friend": -0.18, "blog": -0.08, "direct": -0.05,
-        "google": 0.05, "facebook": 0.08, "instagram": 0.12, "tiktok": 0.18,
+        "friend": -0.18,
+        "blog": -0.08,
+        "direct": -0.05,
+        "google": 0.05,
+        "facebook": 0.08,
+        "instagram": 0.12,
+        "tiktok": 0.18,
     }
     for ref, prop in referral_propensity.items():
         churn_propensity[referral_sources_arr == ref] += prop
 
     # ═══ INTERACTION EFFECTS ═══
     # Demographics amplify each other — young + keto + tiktok is worse than sum of parts
-    age_labels = np.select([ages < 25, ages >= 50], ["young", "senior"], default="adult")
+    age_labels = np.select(
+        [ages < 25, ages >= 50], ["young", "senior"], default="adult"
+    )
 
     # Young age + high-churn diets = amplified churn
     young_high_churn_diet = (age_labels == "young") & (
@@ -131,26 +165,36 @@ def generate_users(n_users: int = N_USERS) -> pd.DataFrame:
     churn_propensity = churn_propensity.clip(0, 1)
     is_active = churn_propensity < 0.5
 
-    users = pd.DataFrame({
-        "user_id": range(1, n_users + 1),
-        "signup_date": signup_dates,
-        "age": ages,
-        "city": np.random.choice(cities, n_users),
-        "dietary_preference": dietary_preferences,
-        "referral_source": referral_sources_arr,
-        "is_active": is_active,
-        # Store churn_propensity for downstream generators (dropped before features)
-        "_churn_propensity": churn_propensity,
-    })
+    users = pd.DataFrame(
+        {
+            "user_id": range(1, n_users + 1),
+            "signup_date": signup_dates,
+            "age": ages,
+            "city": np.random.choice(cities, n_users),
+            "dietary_preference": dietary_preferences,
+            "referral_source": referral_sources_arr,
+            "is_active": is_active,
+            # Store churn_propensity for downstream generators (dropped before features)
+            "_churn_propensity": churn_propensity,
+        }
+    )
 
     # Clamp signup dates
-    users["signup_date"] = pd.to_datetime(users["signup_date"]).clip(signup_start, signup_end)
+    users["signup_date"] = pd.to_datetime(users["signup_date"]).clip(
+        signup_start, signup_end
+    )
     return users
 
 
 def generate_orders(users: pd.DataFrame) -> pd.DataFrame:
     """Generate order history using per-user safe logic."""
-    meal_plans = ["weekly_classic", "weekly_vegan", "weekly_keto", "monthly_premium", "biweekly_standard"]
+    meal_plans = [
+        "weekly_classic",
+        "weekly_vegan",
+        "weekly_keto",
+        "monthly_premium",
+        "biweekly_standard",
+    ]
     delivery_hours = ["morning", "afternoon", "evening"]
 
     records = []
@@ -161,7 +205,9 @@ def generate_orders(users: pd.DataFrame) -> pd.DataFrame:
         tenure_days = max(1, (SNAPSHOT_DATE - signup).days)
 
         # Active users order ~3-8 times/month, inactive ~0.3-2 times/month (wider gap = stronger signal)
-        base_freq = np.random.uniform(3, 8) if user.is_active else np.random.uniform(0.3, 2)
+        base_freq = (
+            np.random.uniform(3, 8) if user.is_active else np.random.uniform(0.3, 2)
+        )
         expected_orders = base_freq * tenure_days / 30
 
         # Some users may have zero orders (Poisson can produce 0)
@@ -175,32 +221,57 @@ def generate_orders(users: pd.DataFrame) -> pd.DataFrame:
 
         for offset in offsets:
             order_date = signup + timedelta(days=int(offset))
-            records.append({
-                "order_id": order_id,
-                "user_id": user.user_id,
-                "order_date": order_date,
-                "order_value": round(np.random.lognormal(mean=3.5, sigma=0.4), 2),
-                "meal_plan": np.random.choice(meal_plans),
-                "delivery_hour": np.random.choice(delivery_hours),
-                # Ratings correlate with is_active: active users give higher ratings
-                "rating": np.random.choice([1, 2, 3, 4, 5],
-                    p=[0.02, 0.03, 0.08, 0.32, 0.55] if user.is_active else [0.05, 0.08, 0.15, 0.35, 0.37]),
-                # Late deliveries more common for inactive users
-                "on_time_delivery": np.random.choice([True, False],
-                    p=[0.95, 0.05] if user.is_active else [0.85, 0.15]),
-                # Coupon usage: active users use coupons less often (they're already happy)
-                "coupon_used": np.random.choice([True, False],
-                    p=[0.10, 0.90] if user.is_active else [0.40, 0.60]),
-            })
+            records.append(
+                {
+                    "order_id": order_id,
+                    "user_id": user.user_id,
+                    "order_date": order_date,
+                    "order_value": round(np.random.lognormal(mean=3.5, sigma=0.4), 2),
+                    "meal_plan": np.random.choice(meal_plans),
+                    "delivery_hour": np.random.choice(delivery_hours),
+                    # Ratings correlate with is_active: active users give higher ratings
+                    "rating": np.random.choice(
+                        [1, 2, 3, 4, 5],
+                        p=(
+                            [0.02, 0.03, 0.08, 0.32, 0.55]
+                            if user.is_active
+                            else [0.05, 0.08, 0.15, 0.35, 0.37]
+                        ),
+                    ),
+                    # Late deliveries more common for inactive users
+                    "on_time_delivery": np.random.choice(
+                        [True, False],
+                        p=[0.95, 0.05] if user.is_active else [0.85, 0.15],
+                    ),
+                    # Coupon usage: active users use coupons less often (they're already happy)
+                    "coupon_used": np.random.choice(
+                        [True, False],
+                        p=[0.10, 0.90] if user.is_active else [0.40, 0.60],
+                    ),
+                }
+            )
             order_id += 1
 
     if not records:
-        return pd.DataFrame(columns=[
-            "order_id", "user_id", "order_date", "order_value",
-            "meal_plan", "delivery_hour", "rating", "on_time_delivery", "coupon_used",
-        ])
+        return pd.DataFrame(
+            columns=[
+                "order_id",
+                "user_id",
+                "order_date",
+                "order_value",
+                "meal_plan",
+                "delivery_hour",
+                "rating",
+                "on_time_delivery",
+                "coupon_used",
+            ]
+        )
 
-    df = pd.DataFrame(records).sort_values(["user_id", "order_date"]).reset_index(drop=True)
+    df = (
+        pd.DataFrame(records)
+        .sort_values(["user_id", "order_date"])
+        .reset_index(drop=True)
+    )
 
     # Filter out any future orders beyond snapshot
     df = df[df["order_date"] <= SNAPSHOT_DATE].reset_index(drop=True)
@@ -210,16 +281,32 @@ def generate_orders(users: pd.DataFrame) -> pd.DataFrame:
 
 def generate_subscriptions(users: pd.DataFrame) -> pd.DataFrame:
     """Generate subscription data with vectorized operations."""
-    plan_types = ["weekly_basic", "weekly_premium", "monthly_basic", "monthly_premium", "biweekly"]
+    plan_types = [
+        "weekly_basic",
+        "weekly_premium",
+        "monthly_basic",
+        "monthly_premium",
+        "biweekly",
+    ]
     plan_probs = [0.25, 0.15, 0.3, 0.2, 0.1]
-    cancel_reasons = ["too_expensive", "not_enough_variety", "delivery_issues", "diet_change", "traveling"]
+    cancel_reasons = [
+        "too_expensive",
+        "not_enough_variety",
+        "delivery_issues",
+        "diet_change",
+        "traveling",
+    ]
 
     # Duration based on activity — INCREASED to push more end_dates past snapshot
     # Longer durations = more users active at snapshot = more chance to end in the window
     # Using lognormal for longer right tail so more durations fall in the 30-day window
     def _random_duration(mean, size):
         # lognormal with sigma=1.2 creates long right tail
-        return np.random.lognormal(mean=np.log(mean), sigma=1.2, size=size).astype(int).clip(14)
+        return (
+            np.random.lognormal(mean=np.log(mean), sigma=1.2, size=size)
+            .astype(int)
+            .clip(14)
+        )
 
     duration_days = np.where(
         users["is_active"],
@@ -236,20 +323,20 @@ def generate_subscriptions(users: pd.DataFrame) -> pd.DataFrame:
 
     # Cancellation reasons for subscriptions that ended before snapshot
     reasons = np.where(
-        ~is_active_status,
-        np.random.choice(cancel_reasons, len(users)),
-        ""
+        ~is_active_status, np.random.choice(cancel_reasons, len(users)), ""
     )
 
-    subscriptions = pd.DataFrame({
-        "user_id": users["user_id"],
-        "plan_type": np.random.choice(plan_types, len(users), p=plan_probs),
-        "start_date": start_date,
-        "end_date": end_sub_date,
-        "monthly_price": np.round(np.random.uniform(29, 99, len(users)), 2),
-        "status": np.where(is_active_status, "active", "cancelled"),
-        "cancellation_reason": reasons,
-    })
+    subscriptions = pd.DataFrame(
+        {
+            "user_id": users["user_id"],
+            "plan_type": np.random.choice(plan_types, len(users), p=plan_probs),
+            "start_date": start_date,
+            "end_date": end_sub_date,
+            "monthly_price": np.round(np.random.uniform(29, 99, len(users)), 2),
+            "status": np.where(is_active_status, "active", "cancelled"),
+            "cancellation_reason": reasons,
+        }
+    )
 
     return subscriptions
 
@@ -288,24 +375,42 @@ def generate_engagement(users: pd.DataFrame, orders: pd.DataFrame) -> pd.DataFra
             # Widened from [2.0 / 0.4] to [2.5 / 0.3] — deeper gap = more signal
             active_boost = 2.5 if user.is_active else 0.3
 
-            records.append({
-                "user_id": user_id,
-                "week_date": wd,
-                "app_logins": max(0, int(np.random.poisson(d * 4 * active_boost))),
-                "recipes_viewed": max(0, int(np.random.poisson(d * 8 * active_boost))),
-                "meals_skipped": np.random.choice([0, 1, 2, 3], p=[0.6, 0.2, 0.12, 0.08]) if d < 0.7 else 0,
-                "support_tickets": int(np.random.choice(
-                    [0, 0, 0, 1, 1, 2],
-                    p=[0.75, 0.08, 0.04, 0.08, 0.03, 0.02] if user.is_active else [0.5, 0.15, 0.1, 0.15, 0.05, 0.05],
-                )),
-                "referral_clicks": max(0, int(np.random.poisson(d * 0.5 * active_boost))),
-                "n_orders_this_week": weekly_counts.get((user_id, wk_key), 0),
-            })
+            records.append(
+                {
+                    "user_id": user_id,
+                    "week_date": wd,
+                    "app_logins": max(0, int(np.random.poisson(d * 4 * active_boost))),
+                    "recipes_viewed": max(
+                        0, int(np.random.poisson(d * 8 * active_boost))
+                    ),
+                    "meals_skipped": (
+                        np.random.choice([0, 1, 2, 3], p=[0.6, 0.2, 0.12, 0.08])
+                        if d < 0.7
+                        else 0
+                    ),
+                    "support_tickets": int(
+                        np.random.choice(
+                            [0, 0, 0, 1, 1, 2],
+                            p=(
+                                [0.75, 0.08, 0.04, 0.08, 0.03, 0.02]
+                                if user.is_active
+                                else [0.5, 0.15, 0.1, 0.15, 0.05, 0.05]
+                            ),
+                        )
+                    ),
+                    "referral_clicks": max(
+                        0, int(np.random.poisson(d * 0.5 * active_boost))
+                    ),
+                    "n_orders_this_week": weekly_counts.get((user_id, wk_key), 0),
+                }
+            )
 
     return pd.DataFrame(records)
 
 
-def generate_churn_labels(users: pd.DataFrame, subscriptions: pd.DataFrame) -> pd.DataFrame:
+def generate_churn_labels(
+    users: pd.DataFrame, subscriptions: pd.DataFrame
+) -> pd.DataFrame:
     """Generate churn labels based on subscription end dates.
 
     A user is labeled as churned if their subscription ends within the
@@ -321,7 +426,9 @@ def generate_churn_labels(users: pd.DataFrame, subscriptions: pd.DataFrame) -> p
     signals (orders, ratings, engagement) to predict near-term churn.
     """
     window_end = SNAPSHOT_DATE + pd.Timedelta(days=CHURN_LABEL_DAYS)
-    window_start = SNAPSHOT_DATE - pd.Timedelta(days=30)  # expanded to capture 4-5% churn rate
+    window_start = SNAPSHOT_DATE - pd.Timedelta(
+        days=30
+    )  # expanded to capture 4-5% churn rate
 
     # Find each user's latest subscription end date
     subs = subscriptions.copy()
@@ -331,7 +438,9 @@ def generate_churn_labels(users: pd.DataFrame, subscriptions: pd.DataFrame) -> p
     latest_sub = subs.sort_values("end_date").groupby("user_id").last().reset_index()
 
     merged = users[["user_id"]].merge(
-        latest_sub[["user_id", "status", "end_date", "start_date"]], on="user_id", how="left"
+        latest_sub[["user_id", "status", "end_date", "start_date"]],
+        on="user_id",
+        how="left",
     )
 
     # Churned = subscription ended in or just before the prediction window

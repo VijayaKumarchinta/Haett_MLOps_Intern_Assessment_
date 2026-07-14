@@ -38,7 +38,9 @@ RANDOM_SEED = 42
 N_USERS = 5000
 N_DAYS_HISTORY = 365
 CHURN_LABEL_DAYS = 30
-CHURN_RATE = 0.25  # Target for data generation tuning; actual label rate depends on simulation
+CHURN_RATE = (
+    0.25  # Target for data generation tuning; actual label rate depends on simulation
+)
 
 # Snapshot date for temporal consistency
 # All features are computed from data up to this date.

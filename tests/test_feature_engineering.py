@@ -5,10 +5,9 @@ Covers edge cases: empty data, single-user data, zero orders, etc.
 
 import pytest
 import pandas as pd
-import numpy as np
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -28,108 +27,146 @@ from src.utils.config import SNAPSHOT_DATE
 @pytest.fixture
 def sample_orders():
     """Fixture with basic order data."""
-    return pd.DataFrame({
-        "order_id": [101, 102, 103, 201, 202, 301],
-        "user_id": [1, 1, 1, 2, 2, 3],
-        "order_date": pd.to_datetime([
-            SNAPSHOT_DATE - timedelta(days=30),
-            SNAPSHOT_DATE - timedelta(days=20),
-            SNAPSHOT_DATE - timedelta(days=10),
-            SNAPSHOT_DATE - timedelta(days=60),
-            SNAPSHOT_DATE - timedelta(days=5),
-            SNAPSHOT_DATE - timedelta(days=1),
-        ]),
-        "order_value": [30.0, 55.0, 25.0, 100.0, 40.0, 15.0],
-        "meal_plan": ["weekly_classic", "weekly_vegan", "weekly_classic", "monthly_premium", "weekly_classic", "biweekly_standard"],
-        "delivery_hour": ["morning", "afternoon", "morning", "evening", "afternoon", "morning"],
-        "rating": [4, 5, 3, 2, 4, 5],
-        "on_time_delivery": [True, True, False, True, True, True],
-        "coupon_used": [False, False, True, True, False, False],
-    })
+    return pd.DataFrame(
+        {
+            "order_id": [101, 102, 103, 201, 202, 301],
+            "user_id": [1, 1, 1, 2, 2, 3],
+            "order_date": pd.to_datetime(
+                [
+                    SNAPSHOT_DATE - timedelta(days=30),
+                    SNAPSHOT_DATE - timedelta(days=20),
+                    SNAPSHOT_DATE - timedelta(days=10),
+                    SNAPSHOT_DATE - timedelta(days=60),
+                    SNAPSHOT_DATE - timedelta(days=5),
+                    SNAPSHOT_DATE - timedelta(days=1),
+                ]
+            ),
+            "order_value": [30.0, 55.0, 25.0, 100.0, 40.0, 15.0],
+            "meal_plan": [
+                "weekly_classic",
+                "weekly_vegan",
+                "weekly_classic",
+                "monthly_premium",
+                "weekly_classic",
+                "biweekly_standard",
+            ],
+            "delivery_hour": [
+                "morning",
+                "afternoon",
+                "morning",
+                "evening",
+                "afternoon",
+                "morning",
+            ],
+            "rating": [4, 5, 3, 2, 4, 5],
+            "on_time_delivery": [True, True, False, True, True, True],
+            "coupon_used": [False, False, True, True, False, False],
+        }
+    )
 
 
 @pytest.fixture
 def single_order():
     """Fixture with a user who has only one order."""
-    return pd.DataFrame({
-        "order_id": [101],
-        "user_id": [1],
-        "order_date": [SNAPSHOT_DATE - timedelta(days=15)],
-        "order_value": [50.0],
-        "meal_plan": ["weekly_classic"],
-        "delivery_hour": ["afternoon"],
-        "rating": [4],
-        "on_time_delivery": [True],
-    })
+    return pd.DataFrame(
+        {
+            "order_id": [101],
+            "user_id": [1],
+            "order_date": [SNAPSHOT_DATE - timedelta(days=15)],
+            "order_value": [50.0],
+            "meal_plan": ["weekly_classic"],
+            "delivery_hour": ["afternoon"],
+            "rating": [4],
+            "on_time_delivery": [True],
+        }
+    )
 
 
 @pytest.fixture
 def empty_orders():
     """Fixture with no orders."""
-    return pd.DataFrame(columns=[
-        "user_id", "order_date", "order_value", "meal_plan",
-        "delivery_hour", "rating", "on_time_delivery",
-    ])
+    return pd.DataFrame(
+        columns=[
+            "user_id",
+            "order_date",
+            "order_value",
+            "meal_plan",
+            "delivery_hour",
+            "rating",
+            "on_time_delivery",
+        ]
+    )
 
 
 @pytest.fixture
 def sample_users():
     """Fixture with basic user data."""
-    return pd.DataFrame({
-        "user_id": [1, 2, 3],
-        "age": [25, 45, 65],
-        "signup_date": [
-            SNAPSHOT_DATE - timedelta(days=200),
-            SNAPSHOT_DATE - timedelta(days=100),
-            SNAPSHOT_DATE - timedelta(days=50),
-        ],
-        "dietary_preference": ["keto", "vegan", "balanced"],
-        "referral_source": ["google", "friend", "instagram"],
-        "city": ["New York", "Los Angeles", "Chicago"],
-    })
+    return pd.DataFrame(
+        {
+            "user_id": [1, 2, 3],
+            "age": [25, 45, 65],
+            "signup_date": [
+                SNAPSHOT_DATE - timedelta(days=200),
+                SNAPSHOT_DATE - timedelta(days=100),
+                SNAPSHOT_DATE - timedelta(days=50),
+            ],
+            "dietary_preference": ["keto", "vegan", "balanced"],
+            "referral_source": ["google", "friend", "instagram"],
+            "city": ["New York", "Los Angeles", "Chicago"],
+        }
+    )
 
 
 @pytest.fixture
 def sample_subscriptions():
     """Fixture with basic subscription data."""
-    return pd.DataFrame({
-        "user_id": [1, 1, 2, 3],
-        "plan_type": ["weekly_basic", "monthly_premium", "weekly_basic", "monthly_basic"],
-        "start_date": [
-            SNAPSHOT_DATE - timedelta(days=180),
-            SNAPSHOT_DATE - timedelta(days=90),
-            SNAPSHOT_DATE - timedelta(days=120),
-            SNAPSHOT_DATE - timedelta(days=60),
-        ],
-        "end_date": [
-            SNAPSHOT_DATE - timedelta(days=100),
-            SNAPSHOT_DATE + timedelta(days=30),
-            SNAPSHOT_DATE - timedelta(days=10),
-            SNAPSHOT_DATE + timedelta(days=60),
-        ],
-        "monthly_price": [49.0, 79.0, 49.0, 59.0],
-        "status": ["cancelled", "active", "cancelled", "active"],
-        "cancellation_reason": ["too_expensive", "", "delivery_issues", ""],
-    })
+    return pd.DataFrame(
+        {
+            "user_id": [1, 1, 2, 3],
+            "plan_type": [
+                "weekly_basic",
+                "monthly_premium",
+                "weekly_basic",
+                "monthly_basic",
+            ],
+            "start_date": [
+                SNAPSHOT_DATE - timedelta(days=180),
+                SNAPSHOT_DATE - timedelta(days=90),
+                SNAPSHOT_DATE - timedelta(days=120),
+                SNAPSHOT_DATE - timedelta(days=60),
+            ],
+            "end_date": [
+                SNAPSHOT_DATE - timedelta(days=100),
+                SNAPSHOT_DATE + timedelta(days=30),
+                SNAPSHOT_DATE - timedelta(days=10),
+                SNAPSHOT_DATE + timedelta(days=60),
+            ],
+            "monthly_price": [49.0, 79.0, 49.0, 59.0],
+            "status": ["cancelled", "active", "cancelled", "active"],
+            "cancellation_reason": ["too_expensive", "", "delivery_issues", ""],
+        }
+    )
 
 
 @pytest.fixture
 def sample_engagement():
     """Fixture with basic engagement data."""
-    return pd.DataFrame({
-        "user_id": [1, 1, 2],
-        "week_date": [
-            SNAPSHOT_DATE - timedelta(weeks=3),
-            SNAPSHOT_DATE - timedelta(weeks=1),
-            SNAPSHOT_DATE - timedelta(weeks=2),
-        ],
-        "app_logins": [4, 2, 0],
-        "recipes_viewed": [10, 5, 1],
-        "meals_skipped": [0, 1, 3],
-        "support_tickets": [0, 1, 2],
-        "referral_clicks": [1, 0, 0],
-        "n_orders_this_week": [2, 1, 0],
-    })
+    return pd.DataFrame(
+        {
+            "user_id": [1, 1, 2],
+            "week_date": [
+                SNAPSHOT_DATE - timedelta(weeks=3),
+                SNAPSHOT_DATE - timedelta(weeks=1),
+                SNAPSHOT_DATE - timedelta(weeks=2),
+            ],
+            "app_logins": [4, 2, 0],
+            "recipes_viewed": [10, 5, 1],
+            "meals_skipped": [0, 1, 3],
+            "support_tickets": [0, 1, 2],
+            "referral_clicks": [1, 0, 0],
+            "n_orders_this_week": [2, 1, 0],
+        }
+    )
 
 
 # ─── Recency Tests ───────────────────────────────────────────────────────────
@@ -289,9 +326,16 @@ def test_encode_categorical_handles_no_cats():
 
 def test_full_pipeline_smoke():
     """Smoke test: run the full pipeline if feature files exist."""
-    feat_path = Path(__file__).resolve().parent.parent / "data" / "features" / "features_encoded.csv"
+    feat_path = (
+        Path(__file__).resolve().parent.parent
+        / "data"
+        / "features"
+        / "features_encoded.csv"
+    )
     if not feat_path.exists():
-        pytest.skip("Feature files not found. Run generate + preprocess + feature_engineering first.")
+        pytest.skip(
+            "Feature files not found. Run generate + preprocess + feature_engineering first."
+        )
     try:
         X, y = build_feature_matrix()
         assert X.shape[0] > 0

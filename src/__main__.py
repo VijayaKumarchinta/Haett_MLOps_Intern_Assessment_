@@ -22,10 +22,14 @@ def main():
         # Start API server
         print("Starting Haett Churn Prediction API...")
         cmd = [
-            sys.executable, "-m", "uvicorn",
+            sys.executable,
+            "-m",
+            "uvicorn",
             "src.api.main:app",
-            "--host", "0.0.0.0",
-            "--port", "8000",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8000",
             "--reload",
         ]
         subprocess.run(cmd, cwd=ROOT)

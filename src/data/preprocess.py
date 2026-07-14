@@ -9,7 +9,12 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from src.utils.config import RAW_DATA_DIR, PROCESSED_DATA_DIR, RANDOM_SEED, SNAPSHOT_DATE
+from src.utils.config import (
+    RAW_DATA_DIR,
+    PROCESSED_DATA_DIR,
+    RANDOM_SEED,
+    SNAPSHOT_DATE,
+)
 
 np.random.seed(RANDOM_SEED)
 
@@ -17,10 +22,18 @@ np.random.seed(RANDOM_SEED)
 def load_raw_data() -> dict:
     """Load all raw CSV datasets."""
     datasets = {}
-    for fname in ["users.csv", "orders.csv", "subscriptions.csv", "engagement.csv", "churn_labels.csv"]:
+    for fname in [
+        "users.csv",
+        "orders.csv",
+        "subscriptions.csv",
+        "engagement.csv",
+        "churn_labels.csv",
+    ]:
         path = RAW_DATA_DIR / fname
         if not path.exists():
-            raise FileNotFoundError(f"Raw data file not found: {path}. Run generate_data.py first.")
+            raise FileNotFoundError(
+                f"Raw data file not found: {path}. Run generate_data.py first."
+            )
         datasets[fname.replace(".csv", "")] = pd.read_csv(path)
     return datasets
 
@@ -36,7 +49,9 @@ def clean_users(users: pd.DataFrame) -> pd.DataFrame:
     df = df[(df["age"] >= 18) & (df["age"] <= 100)]
 
     # Fill missing cities with mode
-    df["city"] = df["city"].fillna(df["city"].mode()[0] if not df["city"].mode().empty else "Unknown")
+    df["city"] = df["city"].fillna(
+        df["city"].mode()[0] if not df["city"].mode().empty else "Unknown"
+    )
 
     # Fill missing dietary preferences
     df["dietary_preference"] = df["dietary_preference"].fillna("balanced")
@@ -44,7 +59,9 @@ def clean_users(users: pd.DataFrame) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
-def clean_orders(orders: pd.DataFrame, min_date: pd.Timestamp, max_date: pd.Timestamp) -> pd.DataFrame:
+def clean_orders(
+    orders: pd.DataFrame, min_date: pd.Timestamp, max_date: pd.Timestamp
+) -> pd.DataFrame:
     """Clean and validate orders data."""
     df = orders.copy()
 
@@ -101,7 +118,13 @@ def clean_engagement(engagement: pd.DataFrame) -> pd.DataFrame:
     df["week_date"] = pd.to_datetime(df["week_date"], errors="coerce")
 
     # Clip negative values
-    for col in ["app_logins", "recipes_viewed", "meals_skipped", "support_tickets", "referral_clicks"]:
+    for col in [
+        "app_logins",
+        "recipes_viewed",
+        "meals_skipped",
+        "support_tickets",
+        "referral_clicks",
+    ]:
         df[col] = df[col].clip(0)
 
     return df.reset_index(drop=True)

@@ -5,7 +5,6 @@ risk assessment, and SHAP-driven business recommendations.
 """
 
 import numpy as np
-import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
@@ -15,9 +14,6 @@ from sklearn.metrics import (
     roc_auc_score,
     average_precision_score,
     brier_score_loss,
-    confusion_matrix,
-    classification_report,
-    roc_curve,
     precision_recall_curve,
 )
 
@@ -176,7 +172,9 @@ def find_optimal_threshold(y_true: np.ndarray, y_proba: np.ndarray) -> dict:
     precisions, recalls, thresholds = precision_recall_curve(y_true, y_proba)
 
     # Remove the last element of thresholds (thresholds has one less element)
-    f1_scores = 2 * (precisions[:-1] * recalls[:-1]) / (precisions[:-1] + recalls[:-1] + 1e-10)
+    f1_scores = (
+        2 * (precisions[:-1] * recalls[:-1]) / (precisions[:-1] + recalls[:-1] + 1e-10)
+    )
     best_idx = np.argmax(f1_scores)
     best_threshold = thresholds[best_idx]
 
@@ -188,7 +186,9 @@ def find_optimal_threshold(y_true: np.ndarray, y_proba: np.ndarray) -> dict:
     }
 
 
-def compute_lift_at_top_k(y_true: np.ndarray, y_proba: np.ndarray, top_k_percent: float = 0.1) -> float:
+def compute_lift_at_top_k(
+    y_true: np.ndarray, y_proba: np.ndarray, top_k_percent: float = 0.1
+) -> float:
     """Compute the lift in recall when targeting the top-k% highest-risk users.
 
     This is a business-focused metric: if we intervene on the top 10% of users
@@ -204,7 +204,11 @@ def compute_lift_at_top_k(y_true: np.ndarray, y_proba: np.ndarray, top_k_percent
     """
     n_top = max(1, int(len(y_true) * top_k_percent))
     top_k_idx = np.argsort(y_proba)[-n_top:]  # highest probabilities
-    n_churners_in_top_k = y_true.iloc[top_k_idx].sum() if hasattr(y_true, 'iloc') else y_true[top_k_idx].sum()
+    n_churners_in_top_k = (
+        y_true.iloc[top_k_idx].sum()
+        if hasattr(y_true, "iloc")
+        else y_true[top_k_idx].sum()
+    )
     total_churners = y_true.sum()
     recall_at_top_k = n_churners_in_top_k / total_churners if total_churners > 0 else 0
     baseline = top_k_percent
@@ -316,29 +320,31 @@ def get_business_recommendation(
     strengths = _extract_strengths(shap_explanations, max_signals=2)
     actions = _extract_risk_actions(shap_explanations, n_actions=4)
 
-    base = f"⚠ HIGH CHURN RISK (P={probability:.2%}). Immediate retention action required."
+    base = (
+        f"⚠ HIGH CHURN RISK (P={probability:.2%}). Immediate retention action required."
+    )
 
     if signals:
-        base += f"\n\nRisk signals:\n"
+        base += "\n\nRisk signals:\n"
         for s in signals[:4]:
             base += f"  - {s}\n"
 
     if strengths:
-        base += f"\nStrengths to leverage:\n"
+        base += "\nStrengths to leverage:\n"
         for s in strengths:
             base += f"  - {s}\n"
 
     if actions:
-        base += f"\nRecommended actions:\n"
+        base += "\nRecommended actions:\n"
         for i, action in enumerate(actions[:4], 1):
             base += f"  {i}. {action}\n"
     else:
         base += (
-            f"\n\nRecommended actions:\n"
-            f"  1. Call or SMS the user with a personalized win-back offer\n"
-            f"  2. Offer a free week trial with new menu rotation\n"
-            f"  3. Survey the user to understand specific dissatisfaction reasons\n"
-            f"  4. Assign a dedicated meal planner to address dietary concerns\n"
+            "\n\nRecommended actions:\n"
+            "  1. Call or SMS the user with a personalized win-back offer\n"
+            "  2. Offer a free week trial with new menu rotation\n"
+            "  3. Survey the user to understand specific dissatisfaction reasons\n"
+            "  4. Assign a dedicated meal planner to address dietary concerns\n"
         )
 
     return base.strip()
@@ -361,8 +367,7 @@ def _extract_risk_signals(
 
     # Filter features that increase churn risk
     increasing = [
-        e for e in shap_explanations
-        if e["impact"] > 0.001  # Only meaningful impacts
+        e for e in shap_explanations if e["impact"] > 0.001  # Only meaningful impacts
     ]
 
     # Sort by absolute impact (most impactful first)
@@ -379,7 +384,9 @@ def _extract_risk_signals(
             signal_text = feature_info["signal"].format(value=value)
             signals.append(f"{signal_text} (impact: +{impact:.3f})")
         else:
-            signals.append(f"{feature_name} = {value:.2f} increases risk (impact: +{impact:.3f})")
+            signals.append(
+                f"{feature_name} = {value:.2f} increases risk (impact: +{impact:.3f})"
+            )
 
     return signals
 
@@ -395,10 +402,7 @@ def _extract_strengths(
     if not shap_explanations:
         return []
 
-    decreasing = [
-        e for e in shap_explanations
-        if e["impact"] < -0.001
-    ]
+    decreasing = [e for e in shap_explanations if e["impact"] < -0.001]
 
     decreasing.sort(key=lambda x: abs(x["impact"]), reverse=True)
 
@@ -410,9 +414,13 @@ def _extract_strengths(
         feature_info = _FEATURE_SIGNAL_MAP.get(feature_name)
 
         if feature_info:
-            strengths.append(f"{feature_info['strength_action']} (impact: -{impact:.3f})")
+            strengths.append(
+                f"{feature_info['strength_action']} (impact: -{impact:.3f})"
+            )
         else:
-            strengths.append(f"{feature_name} = {value:.2f} reduces risk (impact: -{impact:.3f})")
+            strengths.append(
+                f"{feature_name} = {value:.2f} reduces risk (impact: -{impact:.3f})"
+            )
 
     return strengths
 
@@ -425,10 +433,7 @@ def _extract_risk_actions(
     if not shap_explanations:
         return []
 
-    increasing = [
-        e for e in shap_explanations
-        if e["impact"] > 0.001
-    ]
+    increasing = [e for e in shap_explanations if e["impact"] > 0.001]
     increasing.sort(key=lambda x: abs(x["impact"]), reverse=True)
 
     actions = []
