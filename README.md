@@ -667,6 +667,25 @@ The drift module supports:
 
 ---
 
+
+---
+
+## 📸 Screenshots
+
+The following evidence was captured from the running API and MLflow environment.
+
+| Evidence | Description | Open |
+|---|---|---|
+| Swagger API Documentation | FastAPI endpoints, schemas, validation, and interactive API testing | [View Swagger UI PDF](screenshots/Haett%20Churn%20Prediction%20API%20-%20Swagger%20UI.pdf) |
+| MLflow Experiment Runs | Logged model runs, parameters, metrics, and artifacts | [View MLflow Runs PDF](screenshots/Runs%20-%20Experiment%201%20-%20MLflow.pdf) |
+| MLflow Model Comparison | Side-by-side comparison of Logistic Regression, Random Forest, and XGBoost | [View Model Comparison PDF](screenshots/Compare%20Runs%20-%20MLflow.pdf) |
+
+### Screenshot directory
+
+[Browse all assessment screenshots](screenshots/)
+
+> The evidence files are stored inside the repository, so these links work directly from the GitHub README.
+
 ## ✅ Testing and Quality
 
 The repository contains **52 automated test cases** covering:
