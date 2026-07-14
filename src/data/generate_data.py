@@ -188,13 +188,16 @@ def generate_orders(users: pd.DataFrame) -> pd.DataFrame:
                 # Late deliveries more common for inactive users
                 "on_time_delivery": np.random.choice([True, False],
                     p=[0.95, 0.05] if user.is_active else [0.85, 0.15]),
+                # Coupon usage: active users use coupons less often (they're already happy)
+                "coupon_used": np.random.choice([True, False],
+                    p=[0.10, 0.90] if user.is_active else [0.40, 0.60]),
             })
             order_id += 1
 
     if not records:
         return pd.DataFrame(columns=[
             "order_id", "user_id", "order_date", "order_value",
-            "meal_plan", "delivery_hour", "rating", "on_time_delivery",
+            "meal_plan", "delivery_hour", "rating", "on_time_delivery", "coupon_used",
         ])
 
     df = pd.DataFrame(records).sort_values(["user_id", "order_date"]).reset_index(drop=True)

@@ -5,7 +5,6 @@ Features include recency, frequency, monetary (RFM), subscription, engagement, a
 """
 
 import pandas as pd
-import numpy as np
 from pathlib import Path
 import sys
 
@@ -18,53 +17,23 @@ from src.utils.config import (
     AGE_GROUP_MAP,
 )
 
-np.random.seed(RANDOM_SEED)
-
 
 def compute_recency_features(orders: pd.DataFrame) -> pd.DataFrame:
-    """Compute recency-based features for each user.
+    """Compute recency-based features.
 
-    All dates are computed relative to SNAPSHOT_DATE for temporal consistency.
+    Per the assessment criteria: Days since last order
     """
     reference_date = SNAPSHOT_DATE
 
     # Latest order per user
     latest_orders = orders.groupby("user_id").agg(
         last_order_date=("order_date", "max"),
-        last_order_value=("order_value", "last"),
-        last_order_rating=("rating", "last"),
     ).reset_index()
 
-    # Days since last order
+    # Days since last order — the core recency feature
     latest_orders["days_since_last_order"] = (
         reference_date - latest_orders["last_order_date"]
     ).dt.days
-
-    # Days since last high-value order (> $50)
-    high_value_orders = orders[orders["order_value"] > 50]
-    if not high_value_orders.empty:
-        last_high_val = high_value_orders.groupby("user_id")["order_date"].max().reset_index()
-        last_high_val.columns = ["user_id", "last_high_value_date"]
-        latest_orders = latest_orders.merge(last_high_val, on="user_id", how="left")
-        latest_orders["days_since_high_value"] = (
-            reference_date - latest_orders["last_high_value_date"]
-        ).dt.days
-        latest_orders["days_since_high_value"] = latest_orders["days_since_high_value"].fillna(999)
-    else:
-        latest_orders["days_since_high_value"] = 999
-
-    # Days since last on-time delivery issue
-    late_orders = orders[orders["on_time_delivery"] == False]
-    if not late_orders.empty:
-        last_late = late_orders.groupby("user_id")["order_date"].max().reset_index()
-        last_late.columns = ["user_id", "last_late_date"]
-        latest_orders = latest_orders.merge(last_late, on="user_id", how="left")
-        latest_orders["days_since_last_late"] = (
-            reference_date - latest_orders["last_late_date"]
-        ).dt.days
-        latest_orders["days_since_last_late"] = latest_orders["days_since_last_late"].fillna(999)
-    else:
-        latest_orders["days_since_last_late"] = 999
 
     # First order date (for tenure)
     first_orders = orders.groupby("user_id")["order_date"].min().reset_index()
@@ -75,87 +44,74 @@ def compute_recency_features(orders: pd.DataFrame) -> pd.DataFrame:
     ).dt.days.clip(lower=0)
 
     # Drop intermediate date columns
-    date_cols = ["last_order_date", "first_order_date", "last_high_value_date", "last_late_date"]
-    latest_orders = latest_orders.drop(columns=[c for c in date_cols if c in latest_orders.columns])
+    latest_orders = latest_orders.drop(columns=["last_order_date", "first_order_date"], errors="ignore")
 
     return latest_orders
 
 
 def compute_frequency_features(orders: pd.DataFrame) -> pd.DataFrame:
-    """Compute frequency-based features."""
+    """Compute frequency-based features.
+
+    Per the assessment criteria: Order consistency, orders in last 30 days
+    """
     orders_sorted = orders.sort_values(["user_id", "order_date"]).copy()
 
     freq = orders_sorted.groupby("user_id").agg(
         total_orders=("order_id", "count"),
-        unique_meal_plans=("meal_plan", "nunique"),
         first_order_date=("order_date", "min"),
-        last_order_date=("order_date", "max"),
-        preferred_hour=("delivery_hour", lambda x: x.mode().iloc[0] if not x.mode().empty else "afternoon"),
     ).reset_index()
 
-    # Order consistency (std of inter-order time)
+    # Order consistency (std of inter-order time) — per assessment criteria
     orders_sorted["prev_order_date"] = orders_sorted.groupby("user_id")["order_date"].shift(1)
     orders_sorted["days_between_orders"] = (
         orders_sorted["order_date"] - orders_sorted["prev_order_date"]
     ).dt.days
 
     order_consistency = orders_sorted.groupby("user_id")["days_between_orders"].agg(
-        mean_days_between_orders="mean",
         std_days_between_orders="std",
     ).reset_index()
     order_consistency["std_days_between_orders"] = order_consistency["std_days_between_orders"].fillna(0)
 
     freq = freq.merge(order_consistency, on="user_id", how="left")
 
-    # Order frequency per month: total_orders / tenure_days * 30
-    freq["tenure_days"] = (SNAPSHOT_DATE - freq["first_order_date"]).dt.days.clip(lower=1)
-    freq["order_frequency_per_month"] = freq["total_orders"] / freq["tenure_days"] * 30
+    # Orders in the last 30 days — per assessment criteria
+    window_start = SNAPSHOT_DATE - pd.Timedelta(days=30)
+    recent_orders = orders_sorted[orders_sorted["order_date"] >= window_start]
+    orders_last_30 = recent_orders.groupby("user_id").size().reset_index(name="orders_last_30_days")
+    freq = freq.merge(orders_last_30, on="user_id", how="left")
 
-    # Weekend ordering ratio
-    orders_sorted["is_weekend"] = orders_sorted["order_date"].dt.dayofweek.isin([5, 6])
-    weekend_ratio = orders_sorted.groupby("user_id")["is_weekend"].mean().reset_index()
-    weekend_ratio.columns = ["user_id", "weekend_order_ratio"]
-    freq = freq.merge(weekend_ratio, on="user_id", how="left")
-
-    # Drop intermediate date columns
-    freq = freq.drop(columns=["first_order_date", "last_order_date"], errors="ignore")
+    freq = freq.drop(columns=["first_order_date"], errors="ignore")
 
     return freq
 
 
 def compute_monetary_features(orders: pd.DataFrame) -> pd.DataFrame:
-    """Compute monetary (value-based) features."""
+    """Compute monetary and coupon-usage features.
+
+    Per the assessment criteria: Average order value, Coupon usage
+    """
     monetary = orders.groupby("user_id").agg(
-        total_spent=("order_value", "sum"),
         avg_order_value=("order_value", "mean"),
-        max_order_value=("order_value", "max"),
-        min_order_value=("order_value", "min"),
         avg_rating=("rating", "mean"),
-        late_delivery_count=("on_time_delivery", lambda x: (~x.astype(bool)).sum()),
     ).reset_index()
 
-    # Spending trend: compare first half vs second half
-    orders_sorted = orders.sort_values(["user_id", "order_date"])
-    orders_sorted["order_rank"] = orders_sorted.groupby("user_id").cumcount() + 1
-    orders_sorted["total_user_orders"] = orders_sorted.groupby("user_id")["user_id"].transform("count")
-
-    # First half vs second half spending
-    first_half = orders_sorted[orders_sorted["order_rank"] <= orders_sorted["total_user_orders"] / 2]
-    second_half = orders_sorted[orders_sorted["order_rank"] > orders_sorted["total_user_orders"] / 2]
-
-    first_half_spend = first_half.groupby("user_id")["order_value"].mean().reset_index()
-    first_half_spend.columns = ["user_id", "first_half_avg_value"]
-
-    second_half_spend = second_half.groupby("user_id")["order_value"].mean().reset_index()
-    second_half_spend.columns = ["user_id", "second_half_avg_value"]
-
-    monetary = monetary.merge(first_half_spend, on="user_id", how="left")
-    monetary = monetary.merge(second_half_spend, on="user_id", how="left")
-
-    monetary["spending_trend"] = (
-        monetary["second_half_avg_value"].fillna(0) - monetary["first_half_avg_value"].fillna(0)
-    )
-    monetary["value_variability"] = monetary["max_order_value"] - monetary["min_order_value"]
+    # Coupon usage — per assessment criteria
+    if "coupon_used" in orders.columns:
+        coupon_agg = orders.groupby("user_id").agg(
+            coupon_usage_count=("coupon_used", "sum"),
+            total_orders_with_coupon_col=("coupon_used", "count"),
+        ).reset_index()
+        # Ratio of orders where coupon was used
+        coupon_agg["coupon_usage_rate"] = (
+            coupon_agg["coupon_usage_count"] / coupon_agg["total_orders_with_coupon_col"]
+        )
+        monetary = monetary.merge(
+            coupon_agg[["user_id", "coupon_usage_count", "coupon_usage_rate"]],
+            on="user_id", how="left",
+        )
+    else:
+        monetary["coupon_usage_count"] = 0
+        monetary["coupon_usage_rate"] = 0.0
 
     return monetary
 
@@ -216,9 +172,9 @@ def compute_subscription_features(subscriptions: pd.DataFrame) -> pd.DataFrame:
 
 
 def compute_engagement_features(engagement: pd.DataFrame) -> pd.DataFrame:
-    """Compute engagement-based features from weekly snapshots.
+    """Compute engagement-based features.
 
-    Only uses engagement data up to SNAPSHOT_DATE.
+    Per the assessment criteria: Meal swap frequency (avg_meals_skipped)
     """
     eng = engagement.copy()
     eng["week_date"] = pd.to_datetime(eng["week_date"])
@@ -227,42 +183,14 @@ def compute_engagement_features(engagement: pd.DataFrame) -> pd.DataFrame:
     eng = eng[eng["week_date"] <= SNAPSHOT_DATE].copy()
 
     if eng.empty:
-        # Return empty feature set if no engagement data
         return pd.DataFrame(columns=["user_id"])
 
-    # Aggregate weekly data per user
+    # Core engagement features
     eng_features = eng.groupby("user_id").agg(
         avg_app_logins=("app_logins", "mean"),
-        avg_recipes_viewed=("recipes_viewed", "mean"),
         avg_meals_skipped=("meals_skipped", "mean"),
         total_support_tickets=("support_tickets", "sum"),
-        total_referral_clicks=("referral_clicks", "sum"),
-        avg_orders_per_week=("n_orders_this_week", "mean"),
     ).reset_index()
-
-    # Engagement trend (last 4 weeks vs overall)
-    max_week = eng.groupby("user_id")["week_date"].max().reset_index()
-    max_week.columns = ["user_id", "max_week_date"]
-
-    recent_engagement = eng.merge(max_week, on="user_id")
-    recent_engagement = recent_engagement[
-        recent_engagement["week_date"] >= recent_engagement["max_week_date"] - pd.Timedelta(weeks=4)
-    ]
-
-    recent_agg = recent_engagement.groupby("user_id").agg(
-        recent_avg_logins=("app_logins", "mean"),
-        recent_avg_recipes=("recipes_viewed", "mean"),
-    ).reset_index()
-
-    eng_features = eng_features.merge(recent_agg, on="user_id", how="left")
-
-    # Engagement decline signal
-    eng_features["login_decline"] = (
-        eng_features["avg_app_logins"].fillna(0) - eng_features["recent_avg_logins"].fillna(0)
-    ).clip(0)
-    eng_features["recipe_decline"] = (
-        eng_features["avg_recipes_viewed"].fillna(0) - eng_features["recent_avg_recipes"].fillna(0)
-    ).clip(0)
 
     return eng_features
 
@@ -291,135 +219,6 @@ def compute_demographic_features(users: pd.DataFrame) -> pd.DataFrame:
     return demo
 
 
-def compute_rolling_window_features(
-    engagement: pd.DataFrame, orders: pd.DataFrame,
-) -> pd.DataFrame:
-    """Compute 4-week rolling window features from raw engagement and orders data.
-
-    These features capture recent trends that aggregate-only features miss:
-    - Recent engagement: meals_skipped, support_tickets, referral_clicks (last 4 weeks)
-    - Recent orders: spending, avg_value (last 30 days)
-    """
-    results = pd.DataFrame()
-
-    # ── Rolling windows from engagement data (last 4 weeks) ──
-    eng = engagement.copy()
-    eng["week_date"] = pd.to_datetime(eng["week_date"])
-    eng = eng[eng["week_date"] <= SNAPSHOT_DATE].copy()
-
-    if not eng.empty:
-        # Filter to last 4 weeks from each user's max week
-        max_week = eng.groupby("user_id")["week_date"].max().reset_index()
-        max_week.columns = ["user_id", "max_week_date"]
-
-        recent_eng = eng.merge(max_week, on="user_id")
-        recent_eng = recent_eng[
-            recent_eng["week_date"] >= recent_eng["max_week_date"] - pd.Timedelta(weeks=4)
-        ]
-
-        rolling = recent_eng.groupby("user_id").agg(
-            recent_meals_skipped=("meals_skipped", "mean"),
-            recent_support_tickets=("support_tickets", "sum"),
-            recent_referral_clicks=("referral_clicks", "sum"),
-        ).reset_index()
-
-        results = rolling
-
-    # ── Rolling windows from orders data (last 30 days) ──
-    odr = orders.copy()
-    odr["order_date"] = pd.to_datetime(odr["order_date"])
-    window_start = SNAPSHOT_DATE - pd.Timedelta(days=30)
-
-    recent_orders = odr[odr["order_date"] >= window_start].copy()
-
-    if not recent_orders.empty:
-        recent_ord_agg = recent_orders.groupby("user_id").agg(
-            recent_spending=("order_value", "sum"),
-            recent_order_count=("order_id", "count"),
-            recent_avg_order_value=("order_value", "mean"),
-        ).reset_index()
-
-        if results.empty:
-            results = recent_ord_agg
-        else:
-            results = results.merge(recent_ord_agg, on="user_id", how="outer")
-
-    if results.empty or "user_id" not in results.columns:
-        return pd.DataFrame(columns=["user_id"])
-
-    return results
-
-
-def compute_interaction_features(features: pd.DataFrame) -> pd.DataFrame:
-    """Compute interaction and ratio features from the aggregated feature matrix.
-
-    These derived features amplify signal by combining related metrics:
-    - Interactions: spending_velocity, satisfaction_score, inactivity_depth
-    - Ratios: ticket_rate, value_for_money, late_delivery_rate
-
-    All features are computed safely (no division by zero, no NaN).
-    """
-    df = features.copy()
-
-    # ── Safe division helper ──
-    def safe_div(a, b, default=0):
-        return np.where(b > 0, a / b, default)
-
-    # ── Interaction features ──
-    # Spending velocity: how much the user spends per unit of frequency
-    if "avg_order_value" in df and "order_frequency_per_month" in df:
-        df["spending_velocity"] = df["avg_order_value"] * df["order_frequency_per_month"]
-
-    # Satisfaction score: high rating + high engagement = happy user
-    if "avg_rating" in df and "avg_app_logins" in df:
-        df["satisfaction_score"] = df["avg_rating"] * df["avg_app_logins"]
-
-    # Inactivity depth: how long since last order × how much logins declined
-    if "days_since_last_order" in df and "login_decline" in df:
-        df["inactivity_depth"] = df["days_since_last_order"] * (df["login_decline"] + 1e-6)
-
-    # Frustration index: more support tickets with lower ratings = frustrated
-    if "total_support_tickets" in df and "avg_rating" in df:
-        df["frustration_index"] = df["total_support_tickets"] * (5.0 - df["avg_rating"])
-
-    # Order velocity: total orders × avg value per day of tenure
-    if "total_orders" in df and "avg_order_value" in df and "tenure_days" in df:
-        df["order_velocity"] = safe_div(df["total_orders"] * df["avg_order_value"], df["tenure_days"] + 1)
-
-    # Waste indicator: skipped meals relative to orders
-    if "avg_meals_skipped" in df and "total_orders" in df:
-        df["waste_indicator"] = df["avg_meals_skipped"] * df["total_orders"]
-
-    # ── Ratio features ──
-    # Support ticket rate: tickets per order (normalized effort)
-    if "total_support_tickets" in df and "total_orders" in df:
-        df["ticket_rate"] = safe_div(df["total_support_tickets"], df["total_orders"])
-
-    # Value for money: avg order value relative to monthly subscription price
-    if "avg_order_value" in df and "monthly_price" in df:
-        df["value_for_money"] = safe_div(df["avg_order_value"], df["monthly_price"]) * 100
-
-    # Late delivery rate: fraction of orders that were late
-    if "late_delivery_count" in df and "total_orders" in df:
-        df["late_delivery_rate"] = safe_div(df["late_delivery_count"], df["total_orders"])
-
-    # Meals skipped per active order week
-    if "avg_meals_skipped" in df and "avg_orders_per_week" in df:
-        df["skip_per_order"] = safe_div(df["avg_meals_skipped"], df["avg_orders_per_week"] + 0.1)
-
-    # Referral rate: clicks per month of tenure
-    if "total_referral_clicks" in df and "tenure_days" in df:
-        df["referral_rate"] = safe_div(df["total_referral_clicks"] * 30, df["tenure_days"] + 1)
-
-    # Rating consistency: spread between max possible and actual rating
-    if "avg_rating" in df:
-        df["rating_gap"] = 5.0 - df["avg_rating"]
-
-    # Order concentration: what fraction of total orders are recent (last 4 weeks)
-    if "avg_orders_per_week" in df and "order_frequency_per_month" in df:
-        df["order_concentration"] = safe_div(df["avg_orders_per_week"] * 4, df["order_frequency_per_month"] / 30 * 28 + 1)
-
-    return df
 
 
 def encode_categorical_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -492,61 +291,31 @@ def build_feature_matrix() -> tuple:
     )
     feature_matrix["churned"] = feature_matrix["churned"].fillna(0).astype(int)
 
-    # ── Compute rolling window features from raw data ──
-    print("  |-- Computing rolling window features...")
-    rolling_features = compute_rolling_window_features(engagement, orders)
-    feature_matrix = feature_matrix.merge(rolling_features, on="user_id", how="left")
+    # Features match the assessment criteria:
+    # days_since_last_order, orders_last_30_days, avg_order_value,
+    # subscription_tenure_days, coupon_usage_rate, avg_meals_skipped,
+    # std_days_between_orders (order consistency)
 
-    # ── Compute interaction and ratio features ──
-    print("  |-- Computing interaction and ratio features...")
-    feature_matrix = compute_interaction_features(feature_matrix)
-
-    # ── Impute NaNs for users with missing data (e.g. zero orders) ──
-    # These semantically correct defaults ensure all users get valid features
+    # ── Impute NaNs for users with missing data ──
     default_fill_values = {
-        # Recency
         "days_since_last_order": 999,
-        "days_since_high_value": 999,
-        "days_since_last_late": 999,
         "tenure_days": 0,
-        # Frequency
         "total_orders": 0,
-        "unique_meal_plans": 0,
-        "mean_days_between_orders": 0,
         "std_days_between_orders": 0,
-        "weekend_order_ratio": 0,
-        "order_frequency_per_month": 0,
-        # Monetary
-        "total_spent": 0,
+        "orders_last_30_days": 0,
         "avg_order_value": 0,
-        "max_order_value": 0,
-        "min_order_value": 0,
         "avg_rating": 0,
-        "late_delivery_count": 0,
-        "first_half_avg_value": 0,
-        "second_half_avg_value": 0,
-        "spending_trend": 0,
-        "value_variability": 0,
-        # Subscription (REMOVED leaked fields: is_sub_active, total_subscription_days, days_since_cancellation)
+        "coupon_usage_count": 0,
+        "coupon_usage_rate": 0.0,
         "n_plan_changes": 0,
         "monthly_price": 0,
         "subscription_tenure_days": 0,
-        # Engagement
         "avg_app_logins": 0,
-        "avg_recipes_viewed": 0,
         "avg_meals_skipped": 0,
         "total_support_tickets": 0,
-        "total_referral_clicks": 0,
-        "avg_orders_per_week": 0,
-        "recent_avg_logins": 0,
-        "recent_avg_recipes": 0,
-        "login_decline": 0,
-        "recipe_decline": 0,
-        # Demographic
         "age": 30,
         "age_group_code": 0,
     }
-    # Also fill any cancel_reason_* dummies and other unknown columns with 0
     for col in feature_matrix.columns:
         if col not in default_fill_values and col not in ["user_id", "churned"]:
             default_fill_values[col] = 0

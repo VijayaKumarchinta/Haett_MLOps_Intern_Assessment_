@@ -75,56 +75,43 @@ async def auto_train_on_startup():
 
 
 class ChurnPredictionRequest(BaseModel):
-    """Single user churn prediction request."""
+    """Single user churn prediction request.
+
+    Features align with the assessment criteria:
+    - Days since last order, Orders in last 30 days, Average order value
+    - Subscription duration, Coupon usage, Meal swap frequency, Order consistency
+    """
 
     user_id: int = Field(..., description="Unique user identifier", ge=1)
 
-    # Recency features
+    # Recency
     days_since_last_order: float = Field(default=0, ge=0, description="Days since user's last order")
-    days_since_high_value: float = Field(default=999, ge=0, description="Days since last order > $50")
-    days_since_last_late: float = Field(default=999, ge=0, description="Days since last late delivery")
-
-    # Frequency features
-    total_orders: int = Field(default=0, ge=0, description="Total number of orders placed")
-    unique_meal_plans: int = Field(default=0, ge=0, description="Number of distinct meal plans tried")
-    mean_days_between_orders: float = Field(default=30, ge=0, description="Average days between orders")
-    std_days_between_orders: float = Field(default=0, ge=0, description="Std dev of days between orders")
-    weekend_order_ratio: float = Field(default=0.28, ge=0, le=1, description="Fraction of orders on weekends")
-    order_frequency_per_month: float = Field(default=4, ge=0, description="Orders per month")
-
-    # Monetary features
-    total_spent: float = Field(default=0, ge=0, description="Total amount spent ($)")
-    avg_order_value: float = Field(default=0, ge=0, description="Average order value ($)")
-    max_order_value: float = Field(default=0, ge=0, description="Maximum single order value ($)")
-    min_order_value: float = Field(default=0, ge=0, description="Minimum single order value ($)")
-    avg_rating: float = Field(default=3.5, ge=1, le=5, description="Average order rating (1-5)")
-    late_delivery_count: int = Field(default=0, ge=0, description="Number of late deliveries")
-    spending_trend: float = Field(default=0, description="Change in spending (recent vs earlier)")
-    value_variability: float = Field(default=0, ge=0, description="Range of order values ($)")
-
-    # Subscription features (is_sub_active, days_since_cancellation, total_subscription_days REMOVED — target leakage)
-    # These leaked future info because a user with is_sub_active=False couldn't possibly churn
-    # (their subscription already ended). The model was learning this shortcut.
-    n_plan_changes: int = Field(default=0, ge=0, description="Number of plan changes")
-    monthly_price: float = Field(default=0, ge=0, description="Current monthly subscription price ($)")
-    subscription_tenure_days: int = Field(default=0, ge=0, description="Days since first subscription")
     tenure_days: int = Field(default=0, ge=0, description="Days since first order")
 
-    # Engagement features
-    avg_app_logins: float = Field(default=0, ge=0, description="Average weekly app logins")
-    avg_recipes_viewed: float = Field(default=0, ge=0, description="Average weekly recipes viewed")
-    avg_meals_skipped: float = Field(default=0, ge=0, description="Average weekly meals skipped")
-    total_support_tickets: int = Field(default=0, ge=0, description="Total support tickets submitted")
-    total_referral_clicks: int = Field(default=0, ge=0, description="Total referral link clicks")
-    avg_orders_per_week: float = Field(default=0, ge=0, description="Average orders per week")
-    recent_avg_logins: float = Field(default=0, ge=0, description="Average logins in last 4 weeks")
-    recent_avg_recipes: float = Field(default=0, ge=0, description="Average recipes viewed in last 4 weeks")
-    login_decline: float = Field(default=0, ge=0, description="Decline in login frequency")
-    recipe_decline: float = Field(default=0, ge=0, description="Decline in recipe viewing")
+    # Frequency & Order consistency
+    total_orders: int = Field(default=0, ge=0, description="Total number of orders placed")
+    std_days_between_orders: float = Field(default=0, ge=0, description="Order consistency (std dev of days between orders)")
+    orders_last_30_days: int = Field(default=0, ge=0, description="Orders placed in the last 30 days")
 
-    # Demographic features
+    # Monetary & Coupon usage
+    avg_order_value: float = Field(default=0, ge=0, description="Average order value ($)")
+    avg_rating: float = Field(default=3.5, ge=1, le=5, description="Average order rating (1-5)")
+    coupon_usage_count: int = Field(default=0, ge=0, description="Number of orders where coupon was used")
+    coupon_usage_rate: float = Field(default=0, ge=0, le=1, description="Fraction of orders with coupon")
+
+    # Subscription
+    n_plan_changes: int = Field(default=0, ge=0, description="Number of plan changes")
+    monthly_price: float = Field(default=0, ge=0, description="Current monthly subscription price ($)")
+    subscription_tenure_days: int = Field(default=0, ge=0, description="Subscription duration in days")
+
+    # Engagement & Meal swap frequency
+    avg_app_logins: float = Field(default=0, ge=0, description="Average weekly app logins")
+    avg_meals_skipped: float = Field(default=0, ge=0, description="Meal swap frequency (avg meals skipped per week)")
+    total_support_tickets: int = Field(default=0, ge=0, description="Total support tickets submitted")
+
+    # Demographic
     age: int = Field(default=30, ge=18, le=100, description="User age")
-    age_group_code: int = Field(default=0, ge=0, description="Age group encoded (0=young_adult, 1=adult, 2=middle_age, 3=senior)")
+    age_group_code: int = Field(default=0, ge=0, description="Age group (0=young_adult, 1=adult, 2=middle_age, 3=senior)")
 
 
 class FeatureExplanation(BaseModel):

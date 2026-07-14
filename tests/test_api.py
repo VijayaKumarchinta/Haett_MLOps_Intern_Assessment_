@@ -57,20 +57,19 @@ def test_predict_endpoint_with_mock():
         "business_recommendation": "No action needed. User is at low risk of churning.",
     }
 
-    # Patch the function at the api.main module level (where it's imported)
     with patch("src.api.main.get_predictor", return_value=mock_predictor):
         request_data = {
             "user_id": 1,
             "days_since_last_order": 5,
             "total_orders": 15,
-            "total_spent": 500.0,
             "avg_order_value": 33.33,
             "avg_rating": 4.2,
             "total_support_tickets": 1,
             "age": 32,
-            "is_sub_active": True,
             "subscription_tenure_days": 180,
             "tenure_days": 200,
+            "avg_meals_skipped": 0.5,
+            "coupon_usage_rate": 0.1,
         }
 
         response = client.post("/predict", json=request_data)

@@ -66,3 +66,6 @@ scripts/__pycache__/
 
 # Documents
 *.docx
+
+# Stray files
+nul

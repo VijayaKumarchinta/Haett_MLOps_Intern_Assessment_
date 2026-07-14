@@ -44,6 +44,7 @@ def sample_orders():
         "delivery_hour": ["morning", "afternoon", "morning", "evening", "afternoon", "morning"],
         "rating": [4, 5, 3, 2, 4, 5],
         "on_time_delivery": [True, True, False, True, True, True],
+        "coupon_used": [False, False, True, True, False, False],
     })
 
 
@@ -153,25 +154,26 @@ def test_recency_single_order(single_order):
     assert recency["days_since_last_order"].values[0] == 15.0
 
 
-def test_recency_high_value_order(sample_orders):
-    """Test days_since_high_value feature."""
+def test_recency_no_extra_cols(sample_orders):
+    """Test recency only has the core features."""
     recency = compute_recency_features(sample_orders)
-    # User 2: high-value order (100.0) was 60 days ago (not 5 days ago - that's 40.0)
-    assert recency[recency["user_id"] == 2]["days_since_high_value"].values[0] == 60.0
-    # User 3 had no high-value order (15.0), should be 999
-    assert recency[recency["user_id"] == 3]["days_since_high_value"].values[0] == 999.0
+    # Should only have user_id, days_since_last_order, tenure_days
+    expected = {"user_id", "days_since_last_order", "tenure_days"}
+    assert set(recency.columns) == expected
 
 
 # ─── Frequency Tests ─────────────────────────────────────────────────────────
 
 
 def test_frequency_basic(sample_orders):
-    """Test basic frequency features."""
+    """Test frequency features match criteria: order consistency, orders in last 30 days."""
     freq = compute_frequency_features(sample_orders)
     assert "total_orders" in freq.columns
-    assert "order_frequency_per_month" in freq.columns
-    # User 1 has 3 orders
+    assert "std_days_between_orders" in freq.columns
+    assert "orders_last_30_days" in freq.columns
+    # User 1 has 3 orders, all within last 30 days
     assert freq[freq["user_id"] == 1]["total_orders"].values[0] == 3
+    assert freq[freq["user_id"] == 1]["orders_last_30_days"].values[0] == 3
 
 
 def test_frequency_single_order(single_order):
@@ -186,14 +188,16 @@ def test_frequency_single_order(single_order):
 
 
 def test_monetary_basic(sample_orders):
-    """Test basic monetary features."""
+    """Test monetary features: avg order value, coupon usage."""
     mon = compute_monetary_features(sample_orders)
-    assert "total_spent" in mon.columns
     assert "avg_order_value" in mon.columns
-    # User 1: 30+55+25 = 110
-    assert mon[mon["user_id"] == 1]["total_spent"].values[0] == 110.0
-    # User 1 late delivery count = 1 (order 3 is late)
-    assert mon[mon["user_id"] == 1]["late_delivery_count"].values[0] == 1
+    assert "avg_rating" in mon.columns
+    assert "coupon_usage_count" in mon.columns
+    assert "coupon_usage_rate" in mon.columns
+    # User 1: avg = (30+55+25)/3 = 36.67
+    assert round(mon[mon["user_id"] == 1]["avg_order_value"].values[0], 2) == 36.67
+    # User 1: 1 coupon out of 3 orders
+    assert mon[mon["user_id"] == 1]["coupon_usage_count"].values[0] == 1
 
 
 # ─── Subscription Tests ──────────────────────────────────────────────────────
@@ -234,14 +238,16 @@ def test_subscription_no_leakage_fields(sample_subscriptions):
 # ─── Engagement Tests ────────────────────────────────────────────────────────
 
 
-def test_engagement_decline_signals(sample_engagement):
-    """Test engagement decline computation."""
+def test_engagement_basic(sample_engagement):
+    """Test engagement features: meal swap frequency (avg_meals_skipped)."""
     eng = compute_engagement_features(sample_engagement)
-    # User 1: avg logins = 3, recent avg logins = 2, decline = 1
-    assert "login_decline" in eng.columns
-    assert eng[eng["user_id"] == 1]["login_decline"].values[0] >= 0
-    # User 2: only 1 entry, recent = same as avg, decline should be 0
-    assert eng[eng["user_id"] == 2]["login_decline"].values[0] == 0.0
+    assert "avg_app_logins" in eng.columns
+    assert "avg_meals_skipped" in eng.columns
+    assert "total_support_tickets" in eng.columns
+    # User 1: meals skipped = (0+1)/2 = 0.5
+    assert eng[eng["user_id"] == 1]["avg_meals_skipped"].values[0] == 0.5
+    # User 2: support tickets = 2
+    assert eng[eng["user_id"] == 2]["total_support_tickets"].values[0] == 2.0
 
 
 # ─── Demographic Tests ───────────────────────────────────────────────────────
