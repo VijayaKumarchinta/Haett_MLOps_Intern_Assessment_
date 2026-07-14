@@ -60,18 +60,18 @@ This project builds a production-ready churn prediction system for **Haett**, a 
 │                                      │   Best Model     │ │
 │                                      │   (joblib)       │ │
 │                                      └────────┬─────────┘ │
-└──────────────────────────────────────┬─────────┘──────────┘
+└──────────────────────────────────────┬────────┘──────────┘
                                        │
                                        ▼
 ┌──────────────────────────────────────┴──────────────────┐
-│                    API SERVICE (FastAPI)                  │
+│                    API SERVICE (FastAPI)                │
 │  ┌──────────────────────────────────────────────────┐   │
-│  │              POST /predict                        │   │
+│  │              POST /predict                       │   │
 │  │  User Features → Churn Probability               │   │
 │  │                → Risk Level (Low/Medium/High)    │   │
 │  │                → Business Recommendation         │   │
 │  └──────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -258,8 +258,6 @@ docker-compose up --build
 - ☁️ **Cloud Deployment**: Deploy to Cloudflare Workers, AWS, or GCP
 - 🏪 **Feature Store**: Centralized feature serving for training and inference
 
----
-
 ## 🔮 Future Improvements
 
 - [ ] Add **SHAP explainability** to API responses
@@ -271,8 +269,6 @@ docker-compose up --build
 - [ ] Add **real-time streaming** predictions with Kafka
 - [ ] Integrate **retraining pipeline** on new data
 - [ ] Add **model monitoring dashboard** (Grafana + Prometheus)
-
----
 
 ## 📝 License
 

@@ -1,0 +1,182 @@
+name: CD
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  PYTHON_VERSION: "3.11"
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION || 'us-central1' }}
+  SERVICE_NAME: "haett-churn-api"
+  # Use Artifact Registry (Artifact Registry replaces Container Registry)
+  ARTIFACT_REPO: "haett-mlops"
+  IMAGE: "${{ secrets.GCP_REGION || 'us-central1' }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/haett-mlops/haett-churn-api"
+
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run all tests
+        run: python -m pytest tests/ -v --tb=short -x
+
+  deploy:
+    name: Build & Deploy to Cloud Run
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # Use fewer hyperparameter iterations for faster CI builds
+      - name: Install dependencies and run pipeline
+        run: |
+          pip install -r requirements.txt
+          N_HPARAM_ITER=5 python src/run_pipeline.py
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Create Artifact Registry repository (if not exists)
+        run: |
+          gcloud artifacts repositories describe ${{ env.ARTIFACT_REPO }} \
+            --location=${{ env.REGION }} 2>/dev/null || \
+          gcloud artifacts repositories create ${{ env.ARTIFACT_REPO }} \
+            --repository-format=docker \
+            --location=${{ env.REGION }} \
+            --description="Haett MLOps Docker images"
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.ref_name }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ env.IMAGE }}:${{ github.ref_name }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --memory 1Gi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 10 \
+            --timeout 300 \
+            --concurrency 80 \
+            --set-env-vars "MLFLOW_TRACKING_URI=sqlite:////app/mlruns/mlflow.db"
+
+      - name: Get deployment URL
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)')
+          echo "Deployed to: $URL"
+          echo "DEPLOY_URL=$URL" >> $GITHUB_ENV
+
+      - name: Health check with retries
+        run: |
+          echo "Waiting for deployment to be ready..."
+          for i in $(seq 1 12); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.DEPLOY_URL }}/health || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Health check passed (HTTP 200)"
+              curl -s ${{ env.DEPLOY_URL }}/health | python -m json.tool
+              exit 0
+            fi
+            echo "  Attempt $i/12 — HTTP $HTTP_CODE, retrying in 10s..."
+            sleep 10
+          done
+          echo "❌ Health check failed after 12 attempts"
+          curl -v ${{ env.DEPLOY_URL }}/health 2>&1 || true
+          exit 1
+
+      - name: Run smoke test prediction
+        run: |
+          echo "Running smoke test on prediction endpoint..."
+          RESPONSE=$(curl -s -X POST ${{ env.DEPLOY_URL }}/predict \
+            -H "Content-Type: application/json" \
+            -d '{
+              "user_id": 1,
+              "days_since_last_order": 3,
+              "total_orders": 15,
+              "avg_rating": 4.2,
+              "total_support_tickets": 1,
+              "age": 32,
+              "is_sub_active": true,
+              "subscription_tenure_days": 180,
+              "tenure_days": 200
+            }' 2>&1)
+          echo "$RESPONSE" | python -m json.tool
+          CHURN_PROB=$(echo "$RESPONSE" | python -c "import sys,json; print(json.load(sys.stdin).get('churn_probability', -1))")
+          if [ "$(echo "$CHURN_PROB >= 0" | bc)" -eq 1 ]; then
+            echo "✅ Smoke test passed — churn_probability=$CHURN_PROB"
+          else
+            echo "❌ Smoke test failed — unexpected response"
+            exit 1
+          fi
+
+      - name: Print deployment summary
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════════════════════╗"
+          echo "║                    DEPLOYMENT COMPLETE                       ║"
+          echo "╠══════════════════════════════════════════════════════════════╣"
+          echo "║  Service:   ${{ env.SERVICE_NAME }}"
+          echo "║  Region:    ${{ env.REGION }}"
+          echo "║  URL:       ${{ env.DEPLOY_URL }}"
+          echo "║  Docs:      ${{ env.DEPLOY_URL }}/docs"
+          echo "║  Version:   ${{ github.ref_name }}"
+          echo "╚══════════════════════════════════════════════════════════════╝"

@@ -37,10 +37,13 @@ data/features/*
 !data/processed/.gitkeep
 !data/features/.gitkeep
 
-# Model artifacts
+# Model artifacts (only commit the files needed for deployment)
 models/*.pkl
 models/*.json
 models/*.joblib
+models/*.csv
+models/*.png
+models/*.txt
 
 # OS
 .DS_Store
@@ -57,3 +60,9 @@ logs/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Scripts artifacts
+scripts/__pycache__/
+
+# Documents
+*.docx

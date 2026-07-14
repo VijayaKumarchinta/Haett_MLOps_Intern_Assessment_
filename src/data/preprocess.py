@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from src.utils.config import RAW_DATA_DIR, PROCESSED_DATA_DIR, RANDOM_SEED
+from src.utils.config import RAW_DATA_DIR, PROCESSED_DATA_DIR, RANDOM_SEED, SNAPSHOT_DATE
 
 np.random.seed(RANDOM_SEED)
 
@@ -117,7 +117,7 @@ def preprocess_all() -> dict:
 
     print("  |-- Cleaning orders...")
     min_date = datasets["users"]["signup_date"].min()
-    max_date = pd.Timestamp.now()
+    max_date = SNAPSHOT_DATE
     datasets["orders"] = clean_orders(datasets["orders"], min_date, max_date)
 
     print("  |-- Cleaning subscriptions...")
