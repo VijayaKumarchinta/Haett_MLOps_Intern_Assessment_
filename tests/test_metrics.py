@@ -61,13 +61,26 @@ def test_find_optimal_threshold():
 
 
 def test_assess_risk_level():
-    """Test risk level classification."""
+    """Test risk level classification with dynamic thresholds.
+
+    With default optimal_threshold=0.5:
+        Low:    < 0.25
+        Medium: 0.25 - 0.75
+        High:   > 0.75
+    """
+    # Default threshold (0.5): boundaries at 0.25 and 0.75
     assert assess_risk_level(0.1) == "Low"
-    assert assess_risk_level(0.29) == "Low"
+    assert assess_risk_level(0.2) == "Low"
     assert assess_risk_level(0.3) == "Medium"
     assert assess_risk_level(0.5) == "Medium"
-    assert assess_risk_level(0.6) == "High"
+    assert assess_risk_level(0.7) == "Medium"
+    assert assess_risk_level(0.8) == "High"
     assert assess_risk_level(0.9) == "High"
+
+    # Custom threshold (e.g., XGBoost typical ~0.18): boundaries at 0.09 and 0.27
+    assert assess_risk_level(0.05, optimal_threshold=0.18) == "Low"
+    assert assess_risk_level(0.12, optimal_threshold=0.18) == "Medium"
+    assert assess_risk_level(0.30, optimal_threshold=0.18) == "High"
 
 
 def test_get_business_recommendation_low_risk():
@@ -80,25 +93,30 @@ def test_get_business_recommendation_low_risk():
 def test_get_business_recommendation_medium_risk():
     """Test recommendation for medium risk."""
     rec = get_business_recommendation(0.5)
-    assert "Medium" in rec
-    assert "15% discount" in rec or "re-engagement" in rec
+    assert "At-risk" in rec
+    assert "Recommended actions" in rec
 
 
 def test_get_business_recommendation_high_risk():
     """Test recommendation for high risk."""
     rec = get_business_recommendation(0.8)
     assert "HIGH" in rec
-    assert "50% off" in rec or "win-back" in rec
+    assert "win-back" in rec or "immediate retention" in rec.lower()
 
 
-def test_get_recommendation_with_features():
-    """Test recommendation with feature context."""
-    features = {
-        "days_since_last_order": 35,
-        "avg_rating": 2.0,
-        "is_sub_active": False,
-        "login_decline": 3,
-    }
-    rec = get_business_recommendation(0.8, features)
+def test_get_recommendation_with_shap_explanations():
+    """Test recommendation with SHAP-driven feature explanations."""
+    shap_explanations = [
+        {"feature": "days_since_last_order", "value": 35.0, "impact": 0.15},
+        {"feature": "avg_rating", "value": 2.0, "impact": 0.08},
+        {"feature": "total_support_tickets", "value": 5.0, "impact": 0.05},
+        {"feature": "subscription_tenure_days", "value": 480.0, "impact": -0.10},
+    ]
+    rec = get_business_recommendation(
+        probability=0.8,
+        shap_explanations=shap_explanations,
+    )
     assert "HIGH" in rec
-    assert "no orders" in rec or "ratings" in rec or "subscription" in rec
+    assert "ordered" in rec or "disengagement" in rec or "days" in rec
+    assert "Risk signals" in rec
+    assert "Strengths to leverage" in rec or "reduces risk" in rec

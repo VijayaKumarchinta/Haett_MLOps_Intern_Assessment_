@@ -113,9 +113,13 @@ class ChurnPredictor:
         """
         Predict churn probability for a single user's feature vector.
 
+        Always uses the model's optimal threshold (from training) for risk assessment.
+        Always computes SHAP explanations internally for richer recommendations.
+        Only includes SHAP in the response when explain=True.
+
         Args:
             features: DataFrame with the same columns as training data.
-            explain: If True, include SHAP feature explanations in the result.
+            explain: If True, include SHAP feature explanations in the response.
 
         Returns:
             dict with churn_probability, risk_level, business_recommendation,
@@ -129,12 +133,19 @@ class ChurnPredictor:
         # Predict probability
         probability = float(self.model.predict_proba(features)[0, 1])
 
-        # Assess risk level
-        risk_level = assess_risk_level(probability)
+        # Assess risk level using the model's actual optimal threshold
+        risk_level = assess_risk_level(probability, self.optimal_threshold)
 
-        # Generate business recommendation with actual feature context
-        feature_context = features.iloc[0].to_dict()
-        recommendation = get_business_recommendation(probability, feature_context)
+        # Always compute SHAP explanations internally for richer recommendations
+        shap_explanations = self._compute_explanations(features)
+
+        # Generate business recommendation using SHAP-driven risk signals
+        recommendation = get_business_recommendation(
+            probability=probability,
+            risk_level=risk_level,
+            optimal_threshold=self.optimal_threshold,
+            shap_explanations=shap_explanations,
+        )
 
         result = {
             "churn_probability": round(probability, 4),
@@ -142,23 +153,23 @@ class ChurnPredictor:
             "business_recommendation": recommendation,
         }
 
-        # Compute SHAP explanations if requested
-        if explain:
-            explanations = self._compute_explanations(features)
-            result["explanations"] = explanations
+        # Only include SHAP in the API response if explicitly requested
+        if explain and shap_explanations:
+            result["explanations"] = shap_explanations
 
         return result
 
-    def _compute_explanations(self, features: pd.DataFrame, top_n: int = 5) -> list[dict]:
+    def _compute_explanations(self, features: pd.DataFrame, top_n: int = 5) -> list[dict] | None:
         """Compute SHAP feature explanations for a single prediction.
 
         Returns the top_n features by absolute SHAP value, with their
         contribution to the prediction (positive = increases churn risk).
+        Returns None if SHAP computation fails.
         """
         try:
             self._init_explainer()
         except Exception:
-            return []
+            return None
 
         try:
             shap_values = self._shap_explainer.shap_values(features.values)
@@ -187,7 +198,7 @@ class ChurnPredictor:
 
         except Exception:
             logger.warning("SHAP computation failed", exc_info=True)
-            return []
+            return None
 
     def predict_batch(self, features_batch: pd.DataFrame) -> list[dict]:
         """Predict churn for multiple users."""

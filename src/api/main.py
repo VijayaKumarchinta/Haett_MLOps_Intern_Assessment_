@@ -17,7 +17,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import os
 
 from src.models.predict import ChurnPredictor, get_predictor
-from src.utils.metrics import get_business_recommendation
 from src.utils.config import MODELS_DIR
 
 app = FastAPI(
