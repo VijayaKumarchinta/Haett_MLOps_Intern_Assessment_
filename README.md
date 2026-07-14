@@ -11,7 +11,7 @@
 [![Feast](https://img.shields.io/badge/Feast-Feature%20Store-5B2C6F)](https://feast.dev/)
 [![Airflow](https://img.shields.io/badge/Airflow-Orchestration-017CEE?logo=apacheairflow&logoColor=white)](https://airflow.apache.org/)
 [![Docker](https://img.shields.io/badge/Docker-Local%20Inference-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/Tests-50%20Cases-2EA44F?logo=pytest&logoColor=white)](#-testing-and-quality)
+[![Tests](https://img.shields.io/badge/Tests-52%20Cases-2EA44F?logo=pytest&logoColor=white)](#-testing-and-quality)
 [![Prometheus](https://img.shields.io/badge/Prometheus-Metrics-E6522C?logo=prometheus&logoColor=white)](https://prometheus.io/)
 [![SHAP](https://img.shields.io/badge/Explainability-SHAP-8A2BE2)](https://shap.readthedocs.io/)
 
@@ -53,7 +53,7 @@ The prediction API returns:
 | Assessment requirement | Implementation | Status |
 |---|---|:---:|
 | Data preparation | Synthetic user, order, subscription, engagement, coupon, and support data | ✅ |
-| Feature engineering | 30 model features covering recency, frequency, monetary, subscription, engagement, and demographics | ✅ |
+| Feature engineering | 17 model features covering recency, frequency, monetary, subscription, engagement, and demographics | ✅ |
 | Multiple models | Logistic Regression, Random Forest, and XGBoost | ✅ |
 | Classification metrics | Precision, recall, F1, ROC-AUC, PR-AUC, balanced accuracy, Brier score, and lift | ✅ |
 | MLflow experiment tracking | Parameters, metrics, thresholds, plots, and model artifacts | ✅ |
@@ -62,7 +62,7 @@ The prediction API returns:
 | Input validation | Pydantic field validation and cross-field business rules | ✅ |
 | Business recommendation | Risk and SHAP-driven retention actions | ✅ |
 | Modular project structure | Separate data, model, API, monitoring, feature-store, and orchestration modules | ✅ |
-| Automated testing | 50 test cases across API, features, metrics, drift, and MLOps configuration | ✅ |
+| Automated testing | 52 test cases across API, features, metrics, drift, and MLOps configuration | ✅ |
 | CI workflow | GitHub Actions lint, test, pipeline-smoke, and Docker jobs | ✅ |
 | Explainability | SHAP explanations for supported single predictions | ✅ |
 | Drift monitoring | Reference datasets, drift reports, and severity classification | ✅ |
@@ -162,7 +162,7 @@ The training matrix excludes fields that directly reveal churn or become availab
 
 # 2️⃣ Feature Engineering
 
-The final training matrix contains **30 features**.
+The final training matrix contains **17 features**.
 
 | Assessment example | Implemented feature |
 |---|---|
@@ -183,9 +183,8 @@ Additional feature groups include:
 - plan changes
 - app logins
 - support tickets
+- age
 - age group
-- diet preference
-- referral source
 
 ---
 
@@ -216,19 +215,22 @@ Additional feature groups include:
 | Metric | Value |
 |---|---:|
 | Selected model | **Logistic Regression** |
-| Accuracy | 0.7940 |
-| Balanced accuracy | 0.6345 |
-| Precision | 0.1939 |
-| Recall | 0.4419 |
-| F1 score | 0.2695 |
-| ROC-AUC | 0.7519 |
-| PR-AUC | 0.1779 |
-| Brier score | 0.0742 |
-| Lift at 10% | 1.8605 |
-| Lift at 20% | 2.3256 |
-| Optimal threshold | 0.1518 |
+| Accuracy | 0.4970 |
+| Balanced accuracy | 0.5785 |
+| Precision | 0.2007 |
+| Recall | 0.6994 |
+| F1 score | 0.3119 |
+| ROC-AUC | 0.6210 |
+| PR-AUC | 0.2648 |
+| Brier score | 0.1320 |
+| Lift at 10% | 1.7178 |
+| Lift at 20% | 1.5337 |
+| Optimal threshold | 0.1373 |
 
-These values correspond to the committed deployment metadata. Retraining synthetic data may produce slightly different results.
+These values correspond to the committed deployment metadata.
+
+Model candidates are selected using validation PR-AUC. The test split is used only for final reporting.
+ Retraining synthetic data may produce slightly different results.
 
 ## Saved artifacts
 
@@ -667,7 +669,7 @@ The drift module supports:
 
 ## ✅ Testing and Quality
 
-The repository contains **50 automated test cases** covering:
+The repository contains **52 automated test cases** covering:
 
 - API health and metadata
 - single and batch prediction
@@ -713,7 +715,6 @@ python -m pytest tests -v
 - Drift monitoring is offline rather than continuously scheduled.
 - Airflow and Feast are configured for local assessment use.
 - Authentication, rate limiting, persistent prediction logging, and cloud deployment are outside scope.
-- Model selection can be strengthened with stricter validation and untouched final-test evaluation.
 
 ---
 
