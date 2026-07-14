@@ -18,21 +18,24 @@ from src.monitoring.drift_detection import (
     run_drift_monitoring,
     REFERENCE_DIR,
     DRIFT_REPORTS_DIR,
-    MONITORING_DIR,
 )
 
 
 @pytest.fixture(autouse=True)
 def clean_monitoring_dirs():
-    """Ensure clean monitoring directories before each test."""
+    """Clean generated drift data without deleting monitoring configuration."""
     import shutil
 
-    if MONITORING_DIR.exists():
-        shutil.rmtree(MONITORING_DIR)
-    MONITORING_DIR.mkdir(parents=True, exist_ok=True)
+    for directory in (REFERENCE_DIR, DRIFT_REPORTS_DIR):
+        if directory.exists():
+            shutil.rmtree(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+
     yield
-    if MONITORING_DIR.exists():
-        shutil.rmtree(MONITORING_DIR)
+
+    for directory in (REFERENCE_DIR, DRIFT_REPORTS_DIR):
+        if directory.exists():
+            shutil.rmtree(directory)
 
 
 @pytest.fixture
