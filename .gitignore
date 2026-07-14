@@ -68,3 +68,13 @@ scripts/__pycache__/
 
 # Stray files
 nul
+# Local MLflow Registry database and artifacts
+mlflow.db
+# Local Airflow runtime
+.airflow/
+.airflow-venv/
+# Generated Feast runtime files
+feature_repo/data/registry.db
+feature_repo/data/online_store.db
+feature_repo/data/*.parquet
+# Local monitoring output

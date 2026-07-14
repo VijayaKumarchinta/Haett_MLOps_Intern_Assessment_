@@ -13,3 +13,5 @@ scikit-learn>=1.8,<1.9
 
 # Explainability
 shap>=0.46,<1
+# API monitoring
+prometheus-fastapi-instrumentator==8.0.2

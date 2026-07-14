@@ -43,20 +43,26 @@ def generate_synthetic_current_data(n_samples: int = 1000) -> pd.DataFrame:
     else:
         # Generate synthetic data from scratch
         np.random.seed(42)
-        return pd.DataFrame({
-            "days_since_last_order": np.random.exponential(20, n_samples).astype(int),
-            "total_orders": np.random.poisson(15, n_samples),
-            "total_spent": np.random.exponential(300, n_samples).round(2),
-            "avg_order_value": np.random.normal(35, 15, n_samples).clip(5).round(2),
-            "avg_rating": np.random.uniform(1, 5, n_samples).round(1),
-            "total_support_tickets": np.random.poisson(2, n_samples),
-            "is_sub_active": np.random.choice([0, 1], n_samples, p=[0.3, 0.7]),
-            "avg_app_logins": np.random.exponential(3, n_samples),
-            "login_decline": np.random.exponential(1, n_samples),
-            "order_frequency_per_month": np.random.exponential(4, n_samples),
-            "subscription_tenure_days": np.random.exponential(200, n_samples).astype(int),
-            "tenure_days": np.random.exponential(250, n_samples).astype(int),
-        })
+        return pd.DataFrame(
+            {
+                "days_since_last_order": np.random.exponential(20, n_samples).astype(
+                    int
+                ),
+                "total_orders": np.random.poisson(15, n_samples),
+                "total_spent": np.random.exponential(300, n_samples).round(2),
+                "avg_order_value": np.random.normal(35, 15, n_samples).clip(5).round(2),
+                "avg_rating": np.random.uniform(1, 5, n_samples).round(1),
+                "total_support_tickets": np.random.poisson(2, n_samples),
+                "is_sub_active": np.random.choice([0, 1], n_samples, p=[0.3, 0.7]),
+                "avg_app_logins": np.random.exponential(3, n_samples),
+                "login_decline": np.random.exponential(1, n_samples),
+                "order_frequency_per_month": np.random.exponential(4, n_samples),
+                "subscription_tenure_days": np.random.exponential(
+                    200, n_samples
+                ).astype(int),
+                "tenure_days": np.random.exponential(250, n_samples).astype(int),
+            }
+        )
 
 
 def main():
@@ -64,16 +70,25 @@ def main():
         description="Haett MLOps - Data Drift Detection",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--data", type=str, help="Path to CSV/parquet file with current features")
+    parser.add_argument(
+        "--data", type=str, help="Path to CSV/parquet file with current features"
+    )
     parser.add_argument("--list", action="store_true", help="List recent drift reports")
-    parser.add_argument("--generate", action="store_true", help="Generate synthetic current data for testing")
-    parser.add_argument("--output", type=str, help="Output path for drift report (optional)")
+    parser.add_argument(
+        "--generate",
+        action="store_true",
+        help="Generate synthetic current data for testing",
+    )
+    parser.add_argument(
+        "--output", type=str, help="Output path for drift report (optional)"
+    )
 
     args = parser.parse_args()
 
     # List reports
     if args.list:
         from src.monitoring.drift_detection import list_drift_reports
+
         reports = list_drift_reports()
         if reports.empty:
             print("No drift reports found.")
@@ -105,23 +120,29 @@ def main():
         # Compare reference against itself (baseline - should show no drift)
         print("[...] No data provided. Running baseline check (reference vs itself)...")
         from src.monitoring.drift_detection import _load_latest_reference
+
         reference = _load_latest_reference()
         if reference and "features" in reference:
             current_features = reference["features"].copy()
             current_predictions = None
         else:
-            print("[!] No reference data found. Use --generate or --data to provide current data.")
+            print(
+                "[!] No reference data found. Use --generate or --data to provide current data."
+            )
             sys.exit(1)
 
     # Run drift detection
     print("\n[...] Running drift detection...")
     from src.monitoring.drift_detection import run_drift_monitoring
+
     result = run_drift_monitoring(current_features, current_predictions)
 
     # Print results
-    print(f"\nDrift Detection Result:")
+    print("\nDrift Detection Result:")
     print(f"   Status: {result.get('status', 'unknown').upper()}")
-    print(f"   Drifted features: {result.get('n_drifted_features', 0)} / {result.get('n_features', 0)}")
+    print(
+        f"   Drifted features: {result.get('n_drifted_features', 0)} / {result.get('n_features', 0)}"
+    )
     print(f"   Drift share: {result.get('drift_share', 0):.1%}")
     print(f"   Report: {result.get('report_path', 'N/A')}")
 

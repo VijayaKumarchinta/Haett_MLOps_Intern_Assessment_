@@ -1,0 +1,39 @@
+groups:
+  - name: haett-api-alerts
+    rules:
+      - alert: HaettApiUnavailable
+        expr: up{job="haett-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Haett churn API is unavailable"
+          description: "The API has been unreachable for more than 2 minutes."
+
+      - alert: HaettHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(http_requests_total[5m])), 1)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Haett API error rate is above 5 percent"
+          description: "More than 5 percent of requests returned HTTP 5xx errors."
+
+      - alert: HaettHighLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m]))
+            by (le)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Haett API latency is high"
+          description: "The API p95 latency exceeded one second for 5 minutes."

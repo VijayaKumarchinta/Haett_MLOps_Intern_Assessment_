@@ -761,8 +761,8 @@ This is implemented as an offline monitoring utility rather than a continuously 
 | Data drift detection | ✅ |
 | Monitoring and logging foundation | ✅ |
 | SHAP explainability | ✅ |
-| Feature Store with Feast | Not included |
-| Airflow orchestration | Not included |
+| Feature Store with Feast | ✅ Implemented locally |
+| Airflow orchestration | ✅ Implemented locally |
 | Cloud deployment | Not included |
 
 The optional items not included were intentionally excluded to prioritize clean architecture, reproducibility, and a working deployment.
@@ -787,7 +787,7 @@ The optional items not included were intentionally excluded to prioritize clean 
 
 - Synthetic data cannot fully represent real Haett customer behavior.
 - The final model should be revalidated on production data.
-- MLflow Model Registry registration and promotion are not yet automated.
+- MLflow Model Registry registration, model version creation, and champion alias promotion are implemented through `scripts/register_best_model.py`.
 - Drift checks are offline rather than scheduled continuously.
 - Production authentication, rate limiting, centralized logs, and prediction auditing are outside the assessment scope.
 - Model-selection methodology can be strengthened further with stricter validation and untouched final-test evaluation.
@@ -796,8 +796,8 @@ The optional items not included were intentionally excluded to prioritize clean 
 
 ## 🛣 Future Improvements
 
-- [ ] Register the selected model in MLflow Model Registry
-- [ ] Add aliases such as `candidate` and `champion`
+- [x] Register the selected model in MLflow Model Registry
+- [x] Add a `champion` model alias
 - [ ] Strengthen train-validation-test separation
 - [ ] Add scheduled drift monitoring and alerts
 - [ ] Add cloud deployment
@@ -824,6 +824,19 @@ The repository includes:
 - [ ] Automated MLflow Model Registry promotion
 
 ---
+
+
+## Added MLOps Capabilities
+
+The following non-deployment capabilities are implemented:
+
+- MLflow Model Registry with model versions and a `champion` alias
+- Local Feast feature repository using Parquet and SQLite
+- Airflow DAG for data generation, preprocessing, feature engineering, training, registration, Feast updates, and tests
+- Prometheus-compatible `/metrics` endpoint
+- Prometheus alert rules for availability, error rate, and latency
+
+Cloud deployment and automated production CD are intentionally excluded.
 
 ## 👨‍💻 Author
 

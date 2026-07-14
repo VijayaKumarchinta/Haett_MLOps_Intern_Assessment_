@@ -7,6 +7,7 @@ the training distribution.
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
@@ -34,7 +35,11 @@ print(f"  Churn rate: {y.mean():.1%}")
 
 # 2. Load model and scaler
 model = joblib.load(MODELS_DIR / "churn_model.pkl")
-scaler = joblib.load(MODELS_DIR / "scaler.pkl") if (MODELS_DIR / "scaler.pkl").exists() else None
+scaler = (
+    joblib.load(MODELS_DIR / "scaler.pkl")
+    if (MODELS_DIR / "scaler.pkl").exists()
+    else None
+)
 threshold_path = MODELS_DIR / "optimal_threshold.txt"
 threshold = float(open(threshold_path).read()) if threshold_path.exists() else 0.5
 
@@ -47,8 +52,11 @@ X_train_full, X_test, y_train_full, y_test = train_test_split(
     X_feat, y, test_size=0.2, random_state=RANDOM_SEED, stratify=y
 )
 X_train, X_val, y_train, y_val = train_test_split(
-    X_train_full, y_train_full, test_size=0.25,
-    random_state=RANDOM_SEED, stratify=y_train_full,
+    X_train_full,
+    y_train_full,
+    test_size=0.25,
+    random_state=RANDOM_SEED,
+    stratify=y_train_full,
 )
 
 print(f"\n  Test set size: {len(X_test)}")
@@ -96,7 +104,9 @@ for p in [10, 25, 50, 75, 90]:
 
 # 7. How many exceed threshold?
 above_threshold = (y_proba_test >= threshold).sum()
-print(f"\n  Users above threshold ({threshold:.4f}): {above_threshold} / {len(X_test)} ({above_threshold/len(X_test)*100:.1f}%)")
+print(
+    f"\n  Users above threshold ({threshold:.4f}): {above_threshold} / {len(X_test)} ({above_threshold/len(X_test)*100:.1f}%)"
+)
 
 # 8. ROC-AUC and PR-AUC to confirm model quality
 roc_auc = roc_auc_score(y_test, y_proba_test)
@@ -106,38 +116,90 @@ print(f"  PR-AUC on test set:  {pr_auc:.4f}")
 
 # 9. Now test the same manual curl data
 print(f"\n{'=' * 70}")
-print(f"  HAND-CRAFTED CURL DATA (vs model expectations)")
+print("  HAND-CRAFTED CURL DATA (vs model expectations)")
 print(f"{'=' * 70}")
 
 manual_users = [
-    {"name": "User 101 (loyal)", "data": {
-        "days_since_last_order": 2, "days_since_high_value": 2, "days_since_last_late": 999,
-        "total_orders": 60, "unique_meal_plans": 3, "mean_days_between_orders": 5,
-        "std_days_between_orders": 1, "weekend_order_ratio": 0.3, "order_frequency_per_month": 6,
-        "total_spent": 2400, "avg_order_value": 40, "max_order_value": 80, "min_order_value": 20,
-        "avg_rating": 4.9, "late_delivery_count": 0, "spending_trend": 0, "value_variability": 60,
-        "first_half_avg_value": 38, "second_half_avg_value": 42,
-        "n_plan_changes": 0, "monthly_price": 79.99, "subscription_tenure_days": 500,
-        "tenure_days": 520,
-        "avg_app_logins": 12, "avg_recipes_viewed": 20, "avg_meals_skipped": 0,
-        "total_support_tickets": 0, "total_referral_clicks": 25, "avg_orders_per_week": 2,
-        "recent_avg_logins": 11, "recent_avg_recipes": 18, "login_decline": 0, "recipe_decline": 0,
-        "age": 45, "age_group_code": 2,
-    }},
-    {"name": "User 202 (disengaged)", "data": {
-        "days_since_last_order": 60, "days_since_high_value": 999, "days_since_last_late": 15,
-        "total_orders": 2, "unique_meal_plans": 1, "mean_days_between_orders": 30,
-        "std_days_between_orders": 0, "weekend_order_ratio": 0, "order_frequency_per_month": 0.5,
-        "total_spent": 45, "avg_order_value": 22.5, "max_order_value": 25, "min_order_value": 20,
-        "avg_rating": 1.8, "late_delivery_count": 2, "spending_trend": 0, "value_variability": 5,
-        "first_half_avg_value": 22, "second_half_avg_value": 23,
-        "n_plan_changes": 3, "monthly_price": 29.99, "subscription_tenure_days": 30,
-        "tenure_days": 40,
-        "avg_app_logins": 0.3, "avg_recipes_viewed": 1, "avg_meals_skipped": 3.5,
-        "total_support_tickets": 0, "total_referral_clicks": 0, "avg_orders_per_week": 0.1,
-        "recent_avg_logins": 0.1, "recent_avg_recipes": 0.3, "login_decline": 8, "recipe_decline": 5,
-        "age": 19, "age_group_code": 0,
-    }},
+    {
+        "name": "User 101 (loyal)",
+        "data": {
+            "days_since_last_order": 2,
+            "days_since_high_value": 2,
+            "days_since_last_late": 999,
+            "total_orders": 60,
+            "unique_meal_plans": 3,
+            "mean_days_between_orders": 5,
+            "std_days_between_orders": 1,
+            "weekend_order_ratio": 0.3,
+            "order_frequency_per_month": 6,
+            "total_spent": 2400,
+            "avg_order_value": 40,
+            "max_order_value": 80,
+            "min_order_value": 20,
+            "avg_rating": 4.9,
+            "late_delivery_count": 0,
+            "spending_trend": 0,
+            "value_variability": 60,
+            "first_half_avg_value": 38,
+            "second_half_avg_value": 42,
+            "n_plan_changes": 0,
+            "monthly_price": 79.99,
+            "subscription_tenure_days": 500,
+            "tenure_days": 520,
+            "avg_app_logins": 12,
+            "avg_recipes_viewed": 20,
+            "avg_meals_skipped": 0,
+            "total_support_tickets": 0,
+            "total_referral_clicks": 25,
+            "avg_orders_per_week": 2,
+            "recent_avg_logins": 11,
+            "recent_avg_recipes": 18,
+            "login_decline": 0,
+            "recipe_decline": 0,
+            "age": 45,
+            "age_group_code": 2,
+        },
+    },
+    {
+        "name": "User 202 (disengaged)",
+        "data": {
+            "days_since_last_order": 60,
+            "days_since_high_value": 999,
+            "days_since_last_late": 15,
+            "total_orders": 2,
+            "unique_meal_plans": 1,
+            "mean_days_between_orders": 30,
+            "std_days_between_orders": 0,
+            "weekend_order_ratio": 0,
+            "order_frequency_per_month": 0.5,
+            "total_spent": 45,
+            "avg_order_value": 22.5,
+            "max_order_value": 25,
+            "min_order_value": 20,
+            "avg_rating": 1.8,
+            "late_delivery_count": 2,
+            "spending_trend": 0,
+            "value_variability": 5,
+            "first_half_avg_value": 22,
+            "second_half_avg_value": 23,
+            "n_plan_changes": 3,
+            "monthly_price": 29.99,
+            "subscription_tenure_days": 30,
+            "tenure_days": 40,
+            "avg_app_logins": 0.3,
+            "avg_recipes_viewed": 1,
+            "avg_meals_skipped": 3.5,
+            "total_support_tickets": 0,
+            "total_referral_clicks": 0,
+            "avg_orders_per_week": 0.1,
+            "recent_avg_logins": 0.1,
+            "recent_avg_recipes": 0.3,
+            "login_decline": 8,
+            "recipe_decline": 5,
+            "age": 19,
+            "age_group_code": 0,
+        },
+    },
 ]
 
 # Load feature names
@@ -176,35 +238,43 @@ for user in manual_users:
 
 # 10. Test with REAL users from test set
 print(f"\n{'=' * 70}")
-print(f"  REAL USERS FROM TEST SET - Sample predictions")
+print("  REAL USERS FROM TEST SET - Sample predictions")
 print(f"{'=' * 70}")
 
 # Pick some high-probability and low-probability users
 indices_sorted = np.argsort(y_proba_test)
 n_sample = 5
 
-print(f"\n  Highest churn probability users:")
+print("\n  Highest churn probability users:")
 for idx in indices_sorted[-n_sample:]:
     actual = "CHURNED" if y_test.values[idx] == 1 else "stayed"
-    print(f"    user_id={user_ids.values[idx]:6d}  proba={y_proba_test[idx]:.4f}  actual: {actual}")
+    print(
+        f"    user_id={user_ids.values[idx]:6d}  proba={y_proba_test[idx]:.4f}  actual: {actual}"
+    )
 
-print(f"\n  Lowest churn probability users:")
+print("\n  Lowest churn probability users:")
 for idx in indices_sorted[:n_sample]:
     actual = "CHURNED" if y_test.values[idx] == 1 else "stayed"
-    print(f"    user_id={user_ids.values[idx]:6d}  proba={y_proba_test[idx]:.4f}  actual: {actual}")
+    print(
+        f"    user_id={user_ids.values[idx]:6d}  proba={y_proba_test[idx]:.4f}  actual: {actual}"
+    )
 
-print(f"\n  Random sample from middle:")
-for idx in indices_sorted[len(indices_sorted)//2 - 2:len(indices_sorted)//2 + 3]:
+print("\n  Random sample from middle:")
+for idx in indices_sorted[len(indices_sorted) // 2 - 2 : len(indices_sorted) // 2 + 3]:
     actual = "CHURNED" if y_test.values[idx] == 1 else "stayed"
-    print(f"    user_id={user_ids.values[idx]:6d}  proba={y_proba_test[idx]:.4f}  actual: {actual}")
+    print(
+        f"    user_id={user_ids.values[idx]:6d}  proba={y_proba_test[idx]:.4f}  actual: {actual}"
+    )
 
 print(f"\n{'=' * 70}")
 if y_proba_test.max() > 0.3:
-    print(f"  VERDICT: Model produces a GOOD spread of probabilities")
+    print("  VERDICT: Model produces a GOOD spread of probabilities")
     print(f"           Range: {y_proba_test.min():.4f} to {y_proba_test.max():.4f}")
-    print(f"           The manual curl test data was just not representative of real users.")
+    print(
+        "           The manual curl test data was just not representative of real users."
+    )
 else:
-    print(f"  VERDICT: Model probabilities ARE compressed")
+    print("  VERDICT: Model probabilities ARE compressed")
     print(f"           Range: {y_proba_test.min():.4f} to {y_proba_test.max():.4f}")
-    print(f"           Need to fix calibration or strengthen signal.")
+    print("           Need to fix calibration or strengthen signal.")
 print(f"{'=' * 70}")

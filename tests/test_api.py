@@ -203,3 +203,12 @@ def test_predict_handles_out_of_range_values():
     # age > 100 should be rejected
     response = client.post("/predict", json={"user_id": 1, "age": 150})
     assert response.status_code == 422
+
+
+def test_metrics_endpoint():
+    """Prometheus metrics endpoint should be available."""
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert "text/plain" in response.headers["content-type"]
+    assert "http_" in response.text

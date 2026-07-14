@@ -99,7 +99,7 @@ MODEL_PARAMS = {
 HPARAM_SEARCH_SPACES = {
     "lr_classifier": {
         "C": [0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0],
-        "penalty": ["l2"],
+        "l1_ratio": [0.0],
         "solver": ["lbfgs", "liblinear"],
         "class_weight": [None, "balanced"],
         "max_iter": [1000],

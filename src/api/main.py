@@ -18,6 +18,7 @@ from typing import Self
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.models.predict import ChurnPredictor, get_predictor
@@ -105,6 +106,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# Prometheus metrics are exposed at /metrics.
+Instrumentator(
+    should_group_status_codes=False,
+    should_ignore_untemplated=True,
+).instrument(app).expose(
+    app,
+    endpoint="/metrics",
+    include_in_schema=False,
+)
 
 # ---------------------------------------------------------------------------
 # Request and response schemas
