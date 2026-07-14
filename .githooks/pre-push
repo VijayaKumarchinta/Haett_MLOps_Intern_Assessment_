@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+if [[ -d ".venv" ]]; then
+    # shellcheck disable=SC1091
+    source .venv/bin/activate
+fi
+
+echo "Running pre-push validation..."
+
+python -m black --check src tests scripts
+python -m ruff check src tests scripts
+python -m pytest tests -q
+
+echo "Pre-push validation passed."
