@@ -388,7 +388,7 @@ with tab2:
         "avg_meals_skipped":           ("ms", 0.0, 10.0, float),
         "total_support_tickets":       ("stt", 0, 50, int),
         "age":                         ("age", 18, 100, int),
-        "age_group_code":              ("ag", 0, 3, int),
+        # "age_group_code" excluded — handled by selectbox index param directly
     }
 
     # User scenario selector
