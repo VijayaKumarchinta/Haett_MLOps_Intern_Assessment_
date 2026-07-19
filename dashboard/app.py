@@ -417,26 +417,26 @@ with tab2:
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        days_since = st.number_input("Days Since Last Order", 0, 365, defaults.get("days_since_last_order", 10), key="dslo")
-        tenure = st.number_input("Account Tenure (days)", 0, 1000, defaults.get("tenure_days", 100), key="ten")
-        total_orders = st.number_input("Total Orders", 0, 200, defaults.get("total_orders", 10), key="to")
-        std_days = st.number_input("Order Consistency (std dev)", 0.0, 100.0, defaults.get("std_days_between_orders", 5.0), key="std")
-        orders_30 = st.number_input("Orders in Last 30 Days", 0, 50, defaults.get("orders_last_30_days", 2), key="o30")
+        days_since = st.number_input("Days Since Last Order", 0, 365, int(defaults.get("days_since_last_order", 10)), key="dslo")
+        tenure = st.number_input("Account Tenure (days)", 0, 1000, int(defaults.get("tenure_days", 100)), key="ten")
+        total_orders = st.number_input("Total Orders", 0, 200, int(defaults.get("total_orders", 10)), key="to")
+        std_days = st.number_input("Order Consistency (std dev)", 0.0, 100.0, float(defaults.get("std_days_between_orders", 5.0)), key="std")
+        orders_30 = st.number_input("Orders in Last 30 Days", 0, 50, int(defaults.get("orders_last_30_days", 2)), key="o30")
 
     with col2:
-        avg_order = st.number_input("Avg Order Value ($)", 0.0, 200.0, defaults.get("avg_order_value", 35.0), key="aov")
-        rating = st.slider("Avg Rating (1-5)", 1.0, 5.0, defaults.get("avg_rating", 3.5), 0.1, key="rat")
-        coupon_count = st.number_input("Coupon Usage Count", 0, 50, defaults.get("coupon_usage_count", 0), key="cc")
-        coupon_rate = st.slider("Coupon Usage Rate", 0.0, 1.0, defaults.get("coupon_usage_rate", 0.0), 0.05, key="cr")
-        plan_changes = st.number_input("Plan Changes", 0, 20, defaults.get("n_plan_changes", 0), key="pc")
+        avg_order = st.number_input("Avg Order Value ($)", 0.0, 200.0, float(defaults.get("avg_order_value", 35.0)), key="aov")
+        rating = st.slider("Avg Rating (1-5)", 1.0, 5.0, float(defaults.get("avg_rating", 3.5)), 0.1, key="rat")
+        coupon_count = st.number_input("Coupon Usage Count", 0, 50, int(defaults.get("coupon_usage_count", 0)), key="cc")
+        coupon_rate = st.slider("Coupon Usage Rate", 0.0, 1.0, float(defaults.get("coupon_usage_rate", 0.0)), 0.05, key="cr")
+        plan_changes = st.number_input("Plan Changes", 0, 20, int(defaults.get("n_plan_changes", 0)), key="pc")
 
     with col3:
-        monthly_price = st.number_input("Monthly Price ($)", 0.0, 200.0, defaults.get("monthly_price", 49.99), key="mp")
-        sub_tenure = st.number_input("Subscription Tenure (days)", 0, 1000, defaults.get("subscription_tenure_days", 60), key="st")
-        app_logins = st.slider("App Logins/Week", 0.0, 30.0, defaults.get("avg_app_logins", 5.0), 0.5, key="al")
-        meals_skipped = st.slider("Meals Skipped/Week", 0.0, 10.0, defaults.get("avg_meals_skipped", 1.0), 0.5, key="ms")
-        support_tickets = st.number_input("Support Tickets", 0, 50, defaults.get("total_support_tickets", 0), key="stt")
-        age = st.slider("Age", 18, 100, defaults.get("age", 30), 1, key="age")
+        monthly_price = st.number_input("Monthly Price ($)", 0.0, 200.0, float(defaults.get("monthly_price", 49.99)), key="mp")
+        sub_tenure = st.number_input("Subscription Tenure (days)", 0, 1000, int(defaults.get("subscription_tenure_days", 60)), key="st")
+        app_logins = st.slider("App Logins/Week", 0.0, 30.0, float(defaults.get("avg_app_logins", 5.0)), 0.5, key="al")
+        meals_skipped = st.slider("Meals Skipped/Week", 0.0, 10.0, float(defaults.get("avg_meals_skipped", 1.0)), 0.5, key="ms")
+        support_tickets = st.number_input("Support Tickets", 0, 50, int(defaults.get("total_support_tickets", 0)), key="stt")
+        age = st.slider("Age", 18, 100, int(defaults.get("age", 30)), 1, key="age")
         age_group = st.selectbox("Age Group", ["Young Adult", "Adult", "Middle Age", "Senior"],
                                  index=defaults.get("age_group_code", 1), key="ag")
 
