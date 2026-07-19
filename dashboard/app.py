@@ -369,6 +369,28 @@ with tab2:
     </p>
     """, unsafe_allow_html=True)
 
+    # ── Auto-fill: when scenario changes, reset all number inputs ──
+    # Map feature names to their widget keys + bounds for clamping
+    SCENARIO_WIDGET_MAP = {
+        "days_since_last_order":       ("dslo", 0, 365, int),
+        "tenure_days":                 ("ten", 0, 1000, int),
+        "total_orders":                ("to", 0, 200, int),
+        "std_days_between_orders":     ("std", 0.0, 1000.0, float),
+        "orders_last_30_days":         ("o30", 0, 50, int),
+        "avg_order_value":             ("aov", 0.0, 200.0, float),
+        "avg_rating":                  ("rat", 1.0, 5.0, float),
+        "coupon_usage_count":          ("cc", 0, 50, int),
+        "coupon_usage_rate":           ("cr", 0.0, 1.0, float),
+        "n_plan_changes":              ("pc", 0, 20, int),
+        "monthly_price":               ("mp", 0.0, 200.0, float),
+        "subscription_tenure_days":    ("st", 0, 1000, int),
+        "avg_app_logins":              ("al", 0.0, 30.0, float),
+        "avg_meals_skipped":           ("ms", 0.0, 10.0, float),
+        "total_support_tickets":       ("stt", 0, 50, int),
+        "age":                         ("age", 18, 100, int),
+        "age_group_code":              ("ag", 0, 3, int),
+    }
+
     # User scenario selector
     scenario = st.selectbox(
         "Quick Scenarios:",
@@ -376,6 +398,10 @@ with tab2:
         index=0,
         key="scenario_select",
     )
+
+    # Track previous scenario to detect changes
+    if "_prev_scenario" not in st.session_state:
+        st.session_state._prev_scenario = scenario
 
     scenario_defaults = {
         "Custom": {},
@@ -414,6 +440,17 @@ with tab2:
     }
 
     defaults = scenario_defaults.get(scenario, {})
+
+    # ── Auto-fill: reset all widget values when scenario changes ──
+    if scenario != st.session_state._prev_scenario:
+        st.session_state._prev_scenario = scenario
+        for feature_name, value in defaults.items():
+            if feature_name in SCENARIO_WIDGET_MAP:
+                key, min_val, max_val, cast_type = SCENARIO_WIDGET_MAP[feature_name]
+                if key in st.session_state:
+                    clamped = max(min_val, min(cast_type(value), max_val))
+                    st.session_state[key] = clamped
+        st.rerun()
 
     # Helper: enforce that default value stays within [min_val, max_val]
     def _clamp(val, min_val, max_val):
