@@ -25,138 +25,424 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ─── Custom CSS ──────────────────────────────────────────────────────────
+# ─── Custom CSS — Premium Dark Glassmorphism ────────────────────────────
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
+    /* ═══════════════════════════════════════════════════════════
+       DESIGN TOKENS — Premium Dark
+       ═══════════════════════════════════════════════════════════ */
     :root {
         --primary: #8B5CF6;
         --primary-dark: #6D28D9;
-        --primary-glow: rgba(139,92,246,0.25);
-        --primary-subtle: rgba(139,92,246,0.08);
-        --bg-page: #0F0F1A;
-        --bg-card: #1A1A2E;
-        --bg-card-hover: #1F1F35;
+        --primary-glow: rgba(139,92,246,0.35);
+        --primary-subtle: rgba(139,92,246,0.10);
+        --primary-gradient: linear-gradient(135deg, #8B5CF6, #A78BFA, #C4B5FD);
+
+        --bg-page: #0A0A14;
+        --bg-card: #12121E;
+        --bg-card-hover: #181830;
+        --bg-elevated: #1A1A30;
+
         --text-primary: #E2E8F0;
         --text-secondary: #94A3B8;
         --text-tertiary: #64748B;
-        --border-light: rgba(255,255,255,0.06);
-        --border-medium: rgba(255,255,255,0.1);
-        --shadow-sm: 0 2px 8px rgba(0,0,0,0.2);
-        --shadow-md: 0 8px 24px rgba(0,0,0,0.3);
+
+        --border-light: rgba(255,255,255,0.05);
+        --border-medium: rgba(255,255,255,0.08);
+        --border-active: rgba(139,92,246,0.3);
+
+        --shadow-xs: 0 1px 3px rgba(0,0,0,0.3);
+        --shadow-sm: 0 4px 12px rgba(0,0,0,0.35);
+        --shadow-md: 0 8px 24px rgba(0,0,0,0.4);
+        --shadow-lg: 0 16px 48px rgba(0,0,0,0.5);
+        --shadow-glow: 0 8px 32px rgba(139,92,246,0.25);
+
         --radius-sm: 8px;
         --radius-md: 12px;
         --radius-lg: 16px;
-        --font: 'Inter', -apple-system, sans-serif;
+        --radius-xl: 20px;
+
+        --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+        --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    html { font-size: 16px; }
+    /* ─── Page & Base ─── */
+    @keyframes fadeSlideUp {
+        from { opacity: 0; transform: translateY(16px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+    }
+    @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+    @keyframes pulseGlow {
+        0%, 100% { box-shadow: 0 0 20px rgba(139,92,246,0.15); }
+        50% { box-shadow: 0 0 30px rgba(139,92,246,0.35); }
+    }
+    @keyframes scaleIn {
+        from { transform: scale(0.95); opacity: 0; }
+        to   { transform: scale(1); opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+        }
+    }
+
+    html { font-size: 16px; scroll-behavior: smooth; }
     body { font-family: var(--font); background: var(--bg-page); color: var(--text-primary); }
     .main { background: var(--bg-page); }
-    .main > .block-container { max-width: 1400px; margin: 0 auto; padding-top: 1.5rem; }
+    .main > .block-container {
+        animation: fadeSlideUp 0.5s ease-out both;
+        max-width: 1440px;
+        margin: 0 auto;
+        padding-top: 1.5rem;
+    }
 
-    h1, h2, h3 { font-family: var(--font); letter-spacing: -0.02em; color: var(--text-primary); }
-    .main h1 { font-size: 2rem; font-weight: 700; }
-    .main h2 { font-size: 1.4rem; font-weight: 600; }
-    .main h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-secondary); }
+    /* ─── Typography ─── */
+    h1, h2, h3, h4, h5, h6 {
+        font-family: var(--font);
+        letter-spacing: -0.02em;
+    }
+    .main h1 {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        letter-spacing: -0.03em;
+    }
+    .main h2 {
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+    .main h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
 
+    ::selection {
+        background: rgba(139,92,246,0.3);
+        color: #fff;
+    }
+
+    /* ─── Custom Scrollbar ─── */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: rgba(139,92,246,0.3);
+        border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(139,92,246,0.5);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       KPI METRIC CARDS — Glass Premium
+       ═══════════════════════════════════════════════════════════ */
     div[data-testid="metric-container"] {
         background: var(--bg-card);
         border: 1px solid var(--border-light);
         border-radius: var(--radius-md);
-        padding: 1rem;
-        box-shadow: var(--shadow-sm);
-        transition: transform 200ms, box-shadow 200ms;
+        padding: 1.25rem 1rem;
+        box-shadow: var(--shadow-xs);
+        transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+        position: relative;
+        overflow: hidden;
+        backdrop-filter: blur(8px);
+    }
+    /* Gradient accent bar at top */
+    div[data-testid="metric-container"]::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--primary-gradient);
+        border-radius: var(--radius-md) var(--radius-md) 0 0;
+        opacity: 0.8;
+    }
+    /* Shine overlay on hover */
+    div[data-testid="metric-container"]::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.03) 50%, transparent 60%);
+        background-size: 200% 100%;
+        background-position: 100% 0;
+        transition: background-position 0.6s ease;
+        pointer-events: none;
+        border-radius: var(--radius-md);
     }
     div[data-testid="metric-container"]:hover {
-        transform: translateY(-2px);
+        transform: translateY(-4px);
         box-shadow: var(--shadow-md);
+        border-color: var(--border-active);
+        background: var(--bg-card-hover);
+    }
+    div[data-testid="metric-container"]:hover::after {
+        background-position: -100% 0;
     }
     div[data-testid="metric-container"] label {
-        font-size: 0.7rem !important;
+        font-size: 0.72rem !important;
         font-weight: 600 !important;
         color: var(--text-tertiary) !important;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.06em;
     }
     div[data-testid="metric-container"] div[data-testid="stMetricValue"] {
-        font-size: 1.5rem !important;
+        font-size: 1.75rem !important;
         font-weight: 700 !important;
         color: var(--text-primary) !important;
+        line-height: 1.2;
+        margin-top: 0.15rem;
+    }
+    div[data-testid="metric-container"] div[data-testid="stMetricDelta"] {
+        font-size: 0.8rem !important;
+        font-weight: 600;
     }
 
+    /* ═══════════════════════════════════════════════════════════
+       TABS — Animated Pill Design
+       ═══════════════════════════════════════════════════════════ */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 0.35rem;
-        background: rgba(255,255,255,0.03);
-        padding: 0.35rem;
+        gap: 0.3rem;
+        background: rgba(255,255,255,0.02);
+        padding: 0.4rem;
         border-radius: var(--radius-lg);
         border: 1px solid var(--border-light);
+        backdrop-filter: blur(4px);
     }
     .stTabs [data-baseweb="tab"] {
         border-radius: var(--radius-sm);
-        padding: 0.4rem 0.9rem;
+        padding: 0.5rem 1.1rem;
         font-weight: 500;
-        font-size: 0.82rem;
+        font-size: 0.85rem;
         color: var(--text-secondary);
         border: 1px solid transparent;
-        transition: all 150ms;
+        transition: all var(--transition);
+        position: relative;
     }
     .stTabs [data-baseweb="tab"]:hover {
-        background: rgba(139,92,246,0.08);
+        background: var(--primary-subtle);
         color: var(--primary);
+        border-color: var(--border-active);
+        transform: translateY(-1px);
     }
     .stTabs [aria-selected="true"] {
-        background: var(--bg-card) !important;
+        background: var(--bg-elevated) !important;
+        box-shadow: 0 4px 16px rgba(139,92,246,0.2) !important;
         color: var(--primary) !important;
         font-weight: 600 !important;
+        border-color: var(--border-active) !important;
+        animation: scaleIn 0.2s ease-out;
     }
 
+    /* ═══════════════════════════════════════════════════════════
+       DATAFRAMES — Clean, Premium Tables
+       ═══════════════════════════════════════════════════════════ */
     .stDataFrame {
         border-radius: var(--radius-md);
         border: 1px solid var(--border-light);
         overflow: hidden;
+        box-shadow: var(--shadow-xs);
+        transition: box-shadow var(--transition);
+    }
+    .stDataFrame:hover {
+        box-shadow: var(--shadow-sm);
     }
     .stDataFrame thead tr th {
-        background: #1A1A2E;
+        background: #181830;
         color: var(--text-primary);
         font-weight: 600;
         font-size: 0.72rem;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
-        padding: 0.6rem 0.75rem;
+        letter-spacing: 0.05em;
+        padding: 0.65rem 0.85rem;
         border: none;
     }
     .stDataFrame tbody td {
-        padding: 0.45rem 0.75rem;
+        padding: 0.5rem 0.85rem;
         border-bottom: 1px solid var(--border-light);
         color: var(--text-secondary);
+        font-size: 0.85rem;
     }
-    .stDataFrame tbody tr:hover { background: rgba(139,92,246,0.06); }
+    .stDataFrame tbody tr {
+        transition: background var(--transition);
+    }
+    .stDataFrame tbody tr:hover {
+        background: var(--primary-subtle);
+    }
+    .stDataFrame tbody tr:last-child td {
+        border-bottom: none;
+    }
 
-    hr { border: none; height: 1px; background: linear-gradient(90deg, transparent, var(--border-medium), transparent); margin: 1.5rem 0; }
-    .stAlert { border-radius: var(--radius-sm); border: 1px solid var(--border-light) !important; }
+    /* ═══════════════════════════════════════════════════════════
+       SIDEBAR — Premium Dark Gradient
+       ═══════════════════════════════════════════════════════════ */
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(175deg, #0A0A14 0%, #12121E 100%);
+        border-right: 1px solid rgba(255,255,255,0.03);
+    }
+    section[data-testid="stSidebar"] > div:first-child {
+        padding: 1.25rem 1rem;
+    }
+    section[data-testid="stSidebar"] p {
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+        line-height: 1.6;
+    }
+    section[data-testid="stSidebar"] h3 {
+        color: var(--text-primary);
+        font-weight: 600;
+        font-size: 0.8rem !important;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+    section[data-testid="stSidebar"] hr {
+        border: none;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+        margin: 1.25rem 0;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       BUTTONS — Refined with hover lift
+       ═══════════════════════════════════════════════════════════ */
     .stButton button {
         border-radius: var(--radius-sm);
         font-weight: 600;
-        font-size: 0.82rem;
+        font-size: 0.85rem;
         border: 1px solid var(--border-medium);
         background: var(--bg-card);
         color: var(--text-primary);
-        padding: 0.35rem 0.9rem;
-        transition: all 150ms;
+        padding: 0.45rem 1rem;
+        transition: all var(--transition);
+        box-shadow: var(--shadow-xs);
     }
     .stButton button:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-sm);
         border-color: var(--primary);
         color: var(--primary);
     }
+    .stButton button:active {
+        transform: translateY(0);
+    }
     button[kind="primary"] {
-        background: linear-gradient(135deg, var(--primary), #A78BFA) !important;
+        background: linear-gradient(135deg, #8B5CF6, #A78BFA) !important;
         color: white !important;
         border: none !important;
-        box-shadow: 0 4px 14px var(--primary-glow) !important;
+        box-shadow: 0 4px 16px var(--primary-glow) !important;
+        animation: pulseGlow 3s ease-in-out infinite;
     }
-    .stSpinner > div { border-top-color: var(--primary) !important; }
+    button[kind="primary"]:hover {
+        box-shadow: 0 8px 24px var(--primary-glow) !important;
+        transform: translateY(-3px) !important;
+    }
+    button[kind="primary"]:active {
+        transform: translateY(-1px) !important;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       FORM ELEMENTS — Dark themed
+       ═══════════════════════════════════════════════════════════ */
+    .stNumberInput input, .stTextInput input, .stSelectbox div[data-baseweb="select"] > div {
+        background: var(--bg-card) !important;
+        border-color: var(--border-medium) !important;
+        color: var(--text-primary) !important;
+        border-radius: var(--radius-sm) !important;
+        transition: border-color var(--transition), box-shadow var(--transition);
+    }
+    .stNumberInput input:focus, .stTextInput input:focus {
+        border-color: var(--primary) !important;
+        box-shadow: 0 0 0 3px var(--primary-glow) !important;
+    }
+    .stSlider [role="slider"] {
+        background: var(--primary) !important;
+        box-shadow: 0 0 0 4px var(--primary-glow) !important;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       DIVIDERS — Gradient fade
+       ═══════════════════════════════════════════════════════════ */
+    hr {
+        border: none;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--border-medium), transparent);
+        margin: 1.5rem 0;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       ALERTS / INFO BOXES
+       ═══════════════════════════════════════════════════════════ */
+    .stAlert {
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-light) !important;
+        box-shadow: var(--shadow-xs);
+        font-size: 0.9rem;
+        background: var(--bg-card) !important;
+        color: var(--text-primary) !important;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       SPINNER
+       ═══════════════════════════════════════════════════════════ */
+    .stSpinner > div {
+        border-top-color: var(--primary) !important;
+        border-width: 3px;
+        width: 28px;
+        height: 28px;
+    }
+    .stSpinner p {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       EXPANDER
+       ═══════════════════════════════════════════════════════════ */
+    .streamlit-expanderHeader {
+        font-weight: 600;
+        color: var(--text-secondary);
+        transition: color var(--transition);
+    }
+    .streamlit-expanderHeader:hover {
+        color: var(--primary);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       RESPONSIVE BREAKPOINTS
+       ═══════════════════════════════════════════════════════════ */
+    @media screen and (max-width: 1024px) {
+        .main h1 { font-size: 1.8rem; }
+        .main h2 { font-size: 1.3rem; }
+        .main h3 { font-size: 1.05rem; }
+        div[data-testid="metric-container"] div[data-testid="stMetricValue"] {
+            font-size: 1.4rem !important;
+        }
+    }
+    @media screen and (max-width: 768px) {
+        html { font-size: 14px; }
+        .main h1 { font-size: 1.5rem; }
+        .main h2 { font-size: 1.15rem; }
+        div[data-testid="metric-container"] { padding: 0.85rem 0.65rem; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -255,17 +541,36 @@ else:
     st.sidebar.caption("No drift reports yet. Run drift detection after collecting new data.")
 
 st.sidebar.divider()
-st.sidebar.caption("Haett Churn Prediction v1.0.0")
+st.sidebar.markdown("""
+<div style="text-align:center;padding:0.5rem;">
+    <p style="color:#64748B;font-size:0.65rem;letter-spacing:0.03em;">
+        Haett Churn Prediction v1.0.0
+    </p>
+    <div style="height:2px;width:40px;margin:0.4rem auto;
+                background:linear-gradient(90deg,transparent,#8B5CF6,transparent);"></div>
+    <p style="color:#64748B;font-size:0.55rem;">ML Monitoring Dashboard</p>
+</div>
+""", unsafe_allow_html=True)
 
 # ─── Main Content ─────────────────────────────────────────────────────────
 
-# Hero header
+# ─── Hero Header — Premium Gradient Banner ────────────────────────────
 st.markdown("""
-<div style="margin-bottom:1.5rem;padding:1.5rem;
-            background:linear-gradient(135deg,#1A1A2E 0%,#16213E 100%);
-            border-radius:12px;border:1px solid rgba(255,255,255,0.05);">
-    <h1 style="margin:0;font-size:1.8rem;color:#E2E8F0;">🔮 Churn Prediction Monitor</h1>
-    <p style="color:#94A3B8;margin:0.3rem 0 0 0;font-size:0.9rem;">
+<div style="margin-bottom:1.5rem;padding:2rem 1.8rem;
+            background:linear-gradient(135deg,#12121E 0%,#1A1A30 50%,#16213E 100%);
+            border-radius:16px;
+            border:1px solid rgba(139,92,246,0.15);
+            box-shadow:0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+            position:relative;overflow:hidden;">
+    <div style="position:absolute;top:-50%;right:-10%;width:300px;height:300px;
+                background:radial-gradient(circle,rgba(139,92,246,0.08) 0%,transparent 70%);
+                pointer-events:none;"></div>
+    <div style="position:absolute;bottom:-30%;left:-5%;width:200px;height:200px;
+                background:radial-gradient(circle,rgba(167,139,250,0.05) 0%,transparent 70%);
+                pointer-events:none;"></div>
+    <h1 style="margin:0;font-size:1.8rem;color:#E2E8F0;font-weight:700;letter-spacing:-0.03em;
+               position:relative;z-index:1;">🔮 Churn Prediction Monitor</h1>
+    <p style="color:#94A3B8;margin:0.4rem 0 0 0;font-size:0.9rem;position:relative;z-index:1;">
         Real-time model monitoring · Prediction analysis · SHAP explainability · Drift detection
     </p>
 </div>
@@ -807,10 +1112,11 @@ with tab4:
                     st.info("Reference data needed. Run `python run.py` first, then try again.")
 
 # ─── Footer ───────────────────────────────────────────────────────────────
-st.divider()
 st.markdown("""
-<div style="text-align:center;padding:1rem 0 0.5rem;">
-    <p style="color:#64748B;font-size:0.75rem;">
+<div style="text-align:center;padding:1.5rem 0 0.5rem;">
+    <div style="height:1px;width:100%;margin-bottom:1rem;
+                background:linear-gradient(90deg,transparent,rgba(139,92,246,0.15),transparent);"></div>
+    <p style="color:#64748B;font-size:0.7rem;letter-spacing:0.02em;">
         Haett Churn Prediction Monitoring Dashboard · Built with Streamlit
     </p>
 </div>
